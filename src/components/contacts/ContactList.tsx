@@ -112,107 +112,131 @@ export function ContactList() {
 
   // Single Client Details View
   if (selectedClient) {
+    const totalSpent = selectedClient.orders?.reduce((sum: number, o: any) => sum + (o.total_paid || 0), 0) || 0;
+
     return (
-      <div className="space-y-4 w-full px-4 md:px-6 py-2 animate-in fade-in duration-500">
-        {/* Back Button */}
-        <div>
-          <button 
-            onClick={() => {
-              setSelectedClient(null);
-              router.push('/contacts');
-            }}
-            className="flex items-center gap-2 text-xs font-black uppercase text-text-muted hover:text-text-primary transition-colors"
-          >
-            <ArrowLeft size={14} />
-            <span>Volver a Clientes</span>
-          </button>
-        </div>
+      <div className="w-full animate-in fade-in duration-300">
 
-        {/* Client Header Card */}
-        <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6">
-          <div className="flex flex-col md:flex-row gap-5 items-start md:items-center">
-            <Avatar name={selectedClient.nombre || 'Cliente'} size="lg" className="shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-black text-text-primary truncate">
-                  {selectedClient.nombre}
-                </h1>
-                {getChannelBadge(selectedClient.canal)}
+        {/* ═══ HERO HEADER ══════════════════════════════════════ */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl mx-4 md:mx-6 mt-2 mb-5 shadow-2xl border border-white/5">
+          {/* ambient glow blobs */}
+          <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-brand/15 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-brand/8 blur-3xl pointer-events-none" />
+
+          <div className="relative px-6 md:px-8 pt-6 pb-6">
+            {/* Back */}
+            <button
+              onClick={() => {
+                setSelectedClient(null);
+                router.push('/contacts');
+              }}
+              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/30 hover:text-white/70 transition-colors mb-5"
+            >
+              <ArrowLeft size={12} />
+              <span>Volver a Clientes</span>
+            </button>
+
+            {/* Main hero row */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 text-white flex items-center justify-center font-black text-xl border border-white/10 shrink-0">
+                  {String(selectedClient.nombre || 'C').charAt(0).toUpperCase()}
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full border text-white ${
+                      selectedClient.canal === 'pagina_web' ? 'bg-brand/20 border-brand/30' : 'bg-emerald-500/20 border-emerald-500/30'
+                    }`}>
+                      {selectedClient.canal === 'pagina_web' ? 'Shopify' : selectedClient.canal || 'WhatsApp'}
+                    </span>
+                  </div>
+                  <h1 className="text-3xl font-black tracking-tight text-white leading-none">
+                    {selectedClient.nombre}
+                  </h1>
+                  <p className="text-white/40 text-[10px] font-mono font-medium">
+                    ID: {selectedClient.cliente_id}
+                  </p>
+                </div>
               </div>
-              <p className="text-text-muted text-xs font-semibold mt-1">
-                ID del Cliente: <span className="font-mono">{selectedClient.cliente_id}</span>
-              </p>
+
+              {/* Total spent summary */}
+              <div className="md:text-right shrink-0">
+                <p className="text-[9px] font-black text-white/25 uppercase tracking-widest mb-0.5">Total Comprado</p>
+                <p className="text-3xl font-black text-white">${totalSpent.toLocaleString('es-CO')}</p>
+                <p className="text-[10px] text-white/45 font-bold uppercase mt-0.5">{selectedClient.orders?.length || 0} pedido(s) registrado(s)</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Client details Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left info column */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-4 h-fit">
-            <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center gap-2">
-              <User size={15} className="text-text-muted" />
-              <span>Información General</span>
-            </h3>
+        {/* ═══ BODY: Split grid ════════════════════════════════ */}
+        <div className="px-4 md:px-6 grid grid-cols-1 xl:grid-cols-5 gap-4 pb-10">
 
-            <div className="space-y-3.5 text-xs font-medium text-text-secondary">
-              {selectedClient.identificacion && (
+          {/* LEFT COL (2/5): General Info */}
+          <div className="xl:col-span-2">
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+                <User size={14} className="text-text-muted" />
+                <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Informacion General</span>
+              </div>
+              <div className="px-5 py-4 space-y-3.5 text-xs font-medium">
+                {selectedClient.identificacion && (
+                  <div>
+                    <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Identificacion</span>
+                    <span className="text-text-primary font-bold">{selectedClient.identificacion}</span>
+                  </div>
+                )}
                 <div>
-                  <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Identificación</span>
-                  <span className="text-text-primary font-bold">{selectedClient.identificacion}</span>
+                  <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Telefono</span>
+                  <span className="text-text-primary font-bold flex items-center gap-1.5 mt-1">
+                    <Phone size={12} className="text-text-muted shrink-0" />
+                    {selectedClient.telefono || 'Sin telefono'}
+                  </span>
                 </div>
-              )}
-              <div>
-                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Teléfono</span>
-                <span className="text-text-primary font-bold flex items-center gap-1.5 mt-0.5">
-                  <Phone size={12} className="text-text-muted" />
-                  {selectedClient.telefono || 'Sin teléfono'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Email</span>
-                <span className="text-text-primary font-bold flex items-center gap-1.5 mt-0.5">
-                  <Mail size={12} className="text-text-muted" />
-                  {selectedClient.email || 'Sin correo electrónico'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Dirección</span>
-                <span className="text-text-primary font-bold flex items-center gap-1.5 mt-0.5">
-                  <MapPin size={12} className="text-text-muted" />
-                  {selectedClient.direccion || 'Sin dirección registrada'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Ciudad</span>
-                <span className="text-text-primary font-bold">{selectedClient.ciudad || 'Sin ciudad'}</span>
+                <div>
+                  <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Email</span>
+                  <span className="text-text-primary font-bold flex items-center gap-1.5 mt-1">
+                    <Mail size={12} className="text-text-muted shrink-0" />
+                    {selectedClient.email || 'Sin correo registrado'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Direccion</span>
+                  <span className="text-text-primary font-bold flex items-center gap-1.5 mt-1">
+                    <MapPin size={12} className="text-text-muted shrink-0" />
+                    {selectedClient.direccion || 'Sin direccion'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black text-text-muted uppercase tracking-widest block">Ciudad</span>
+                  <span className="text-text-primary font-bold mt-1 block">{selectedClient.ciudad || 'Sin ciudad'}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right orders list column */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center justify-between">
+          {/* RIGHT COL (3/5): Orders History */}
+          <div className="xl:col-span-3">
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
                 <div className="flex items-center gap-2">
-                  <ShoppingBag size={15} className="text-text-muted" />
-                  <span>Historial de Pedidos</span>
+                  <ShoppingBag size={14} className="text-text-muted" />
+                  <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Historial de Pedidos</span>
                 </div>
-                <span className="bg-brand-bg text-brand text-[10px] px-2 py-0.5 rounded-full font-black">
+                <span className="bg-brand/10 text-brand text-[9px] px-2 py-0.5 rounded-full font-black">
                   {selectedClient.orders?.length || 0}
                 </span>
-              </h3>
-
-              <div className="divide-y divide-slate-100 dark:divide-slate-800/50 mt-2">
+              </div>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
                 {!selectedClient.orders || selectedClient.orders.length === 0 ? (
                   <p className="p-8 text-center text-xs text-text-muted italic">Este cliente no tiene pedidos registrados.</p>
                 ) : (
                   selectedClient.orders.map((order: any) => {
                     const orderDate = new Date(order.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
                     const isFulfill = order.delivery_state === '4';
-                    
+
                     return (
-                      <div key={order.id} className="py-3.5 flex items-center justify-between gap-4">
+                      <div key={order.id} className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                         <div>
                           <p className="text-xs font-black text-text-primary hover:text-brand transition-colors cursor-pointer" onClick={() => router.push(`/pedidos/${order.id}`)}>
                             {order.shopify_order_name || `Pedido #${order.id}`}
@@ -221,7 +245,7 @@ export function ContactList() {
                             {orderDate} | <span className="uppercase font-bold">{order.payment_type || 'Manual'}</span>
                           </p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-4">
                           <div className="text-right">
                             <p className="text-xs font-black text-text-primary">
                               ${(order.total_paid || 0).toLocaleString('es-CO')}
@@ -244,6 +268,7 @@ export function ContactList() {
               </div>
             </div>
           </div>
+
         </div>
       </div>
     );
@@ -254,9 +279,9 @@ export function ContactList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-text-primary tracking-tight uppercase italic">
-            Clientes <span className="text-brand">Hub</span>
+            Clientes <span className="text-brand">Telocalizo</span>
           </h1>
-          <p className="text-text-muted font-medium text-xs mt-1">Gestiona los clientes registrados en Winners Hub desde Supabase.</p>
+          <p className="text-text-muted font-medium text-xs mt-1">Gestiona los clientes registrados en Telocalizo Chats desde Supabase.</p>
         </div>
         <Button 
           variant="outline"

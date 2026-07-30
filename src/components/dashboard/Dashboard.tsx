@@ -206,7 +206,7 @@ export function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight italic">¡Hola, {state.currentUser?.name.split(' ')[0]}!</h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">Aquí está lo que está pasando en Winners Hub hoy con datos reales.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Aquí está lo que está pasando en Telocalizo Chats hoy con datos reales.</p>
         </div>
         <div className="flex items-center gap-2">
            <button 

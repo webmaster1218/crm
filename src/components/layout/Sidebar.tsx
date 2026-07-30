@@ -100,6 +100,12 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
           icon: ClipboardList,
           path: '/pedidos'
         },
+        {
+          id: 'pedidos-confirmar',
+          label: 'Por Confirmar',
+          icon: CheckSquare,
+          path: '/pedidos/confirmar'
+        },
       ]
     },
     {
@@ -174,15 +180,15 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
             <div className="flex items-center gap-2 animate-in fade-in duration-300">
                <img 
                  src="/icono-fabrica-winners-sin-fondo.png" 
-                 alt="Winners Hub Icon" 
+                 alt="Telocalizo Chats Icon" 
                  className="w-8 h-8 object-contain"
                />
-                <h1 className="text-[13px] font-black text-white tracking-tight uppercase italic">Winners<span className="text-blue-300">Hub</span></h1>
+                <h1 className="text-[13px] font-black text-white tracking-tight uppercase italic">Telocalizo<span className="text-brand-light">Chats</span></h1>
             </div>
          ) : (
             <img 
               src="/icono-fabrica-winners-sin-fondo.png" 
-              alt="Winners Hub Icon" 
+              alt="Telocalizo Chats Icon" 
               className="w-8 h-8 object-contain mx-auto"
             />
          )}
@@ -213,7 +219,7 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
                  {visibleItems.map((item) => {
                    const hasSubItems = !!item.subItems;
                    const isParentActive = hasSubItems && item.subItems!.some(sub => pathname === sub.path);
-                   const isActive = activeTab === item.id || isParentActive;
+                   const isActive = pathname === item.path || (hasSubItems && isParentActive);
 
                    return (
                      <div key={item.id} className="space-y-1">

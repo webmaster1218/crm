@@ -77,7 +77,7 @@ export function ChannelsTab() {
   // Interactive Simulator parameters
   const [simulatedName, setSimulatedName] = useState<string>('Felipe Restrepo');
   const [simulatedPhone, setSimulatedPhone] = useState<string>('573108988776');
-  const [simulatedMsgText, setSimulatedMsgText] = useState<string>('Hola Winners Hub, ¿tienen cobertura del software para equipos de soporte bilingües?');
+  const [simulatedMsgText, setSimulatedMsgText] = useState<string>('Hola Telocalizo, ¿tienen cobertura del software para equipos de soporte bilingües?');
   const [simulatedMediaType, setSimulatedMediaType] = useState<'text' | 'image' | 'map'>('text');
 
   // Load configuration from local storage if exists
@@ -468,7 +468,7 @@ export function ChannelsTab() {
                   Configuración WhatsApp Evolution API
                 </h1>
                 <p className="text-xs font-medium text-slate-450 mt-1">
-                  Integra la potencia de Evolution API v2 para gestionar tus chats sin límites de API oficial en Winners Hub.
+                  Integra la potencia de Evolution API v2 para gestionar tus chats sin límites de API oficial en Telocalizo Chats.
                 </p>
               </div>
             </div>
@@ -511,7 +511,7 @@ export function ChannelsTab() {
                     <div className="space-y-1">
                       <p className="text-xs font-bold text-blue-900 dark:text-blue-200">Requerimiento de CORS y Seguridad</p>
                       <p className="text-[11px] text-blue-700/90 dark:text-blue-300 leading-relaxed font-semibold">
-                        Por defecto, Winners Hub se ejecuta de manera segura en tu navegador. Si tu servidor de Evolution API tiene restricciones de CORS, puedes conectarle un proxy o activar el modo simulado para revisar la experiencia y probar el motor de mapeo.
+                        Por defecto, Telocalizo Chats se ejecuta de manera segura en tu navegador. Si tu servidor de Evolution API tiene restricciones de CORS, puedes conectarle un proxy o activar el modo simulado para revisar la experiencia y probar el motor de mapeo.
                       </p>
                     </div>
                   </div>
@@ -749,7 +749,7 @@ export function ChannelsTab() {
                           </div>
                           <div className="flex items-start gap-3">
                             <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-black rounded-lg flex items-center justify-center shrink-0">3</div>
-                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Winners Hub recibirá automáticamente el evento de webhook confirmando el estado <span className="text-green-500 font-bold">CONNECTED / OPEN</span>.</span>
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Telocalizo Chats recibirá automáticamente el evento de webhook confirmando el estado <span className="text-green-500 font-bold">CONNECTED / OPEN</span>.</span>
                           </div>
                         </div>
 
@@ -879,7 +879,7 @@ export function ChannelsTab() {
                       <span className="text-[9px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-widest">Pruebas Omnicanal Sin Servidor Físico</span>
                       <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight italic">Gatillador de Mensajería WhatsApp de Evolution API</h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Este panel simula llamadas HTTP que haría Evolution API directamente a los endpoints del Webhook de Winners Hub cuando tus clientes interactúan por WhatsApp. Úsalo para certificar el soporte multimedia.
+                        Este panel simula llamadas HTTP que haría Evolution API directamente a los endpoints del Webhook de Telocalizo Chats cuando tus clientes interactúan por WhatsApp. Úsalo para certificar el soporte multimedia.
                       </p>
                     </div>
 

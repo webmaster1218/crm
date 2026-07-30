@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Winners Hub',
-    short_name: 'Winners Hub',
-    description: 'Sistema de gestión de clientes y pedidos - Winners Hub',
+    name: 'Telocalizo Chats',
+    short_name: 'Telocalizo Chats',
+    description: 'Sistema de gestión de clientes y pedidos - Telocalizo Chats',
     start_url: '/dashboard',
     display: 'standalone',
     background_color: '#020617',

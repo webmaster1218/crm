@@ -122,18 +122,18 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-page flex items-center justify-center p-4 relative overflow-hidden font-sans transition-colors duration-500">
       {/* Background gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-violet-600/5 dark:bg-violet-600/10 blur-[120px]" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600/5 dark:bg-indigo-600/10 blur-[120px]" />
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-orange-600/5 dark:bg-orange-600/10 blur-[120px]" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-amber-600/5 dark:bg-amber-600/10 blur-[120px]" />
 
       <div className="w-full max-w-md bg-card border border-slate-200/60 dark:border-slate-850 rounded-2xl shadow-xl p-8 relative z-10">
         <div className="text-center mb-8 flex flex-col items-center">
           <img 
             src="/icono-fabrica-winners-sin-fondo.png" 
-            alt="Winners Hub Logo" 
+            alt="Telocalizo Chats Logo" 
             className="w-20 h-20 object-cover border border-brand/10 mb-3 shadow-lg shadow-brand/5"
           />
-          <h1 className="text-3xl font-extrabold text-text-primary tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 dark:from-violet-400 dark:to-indigo-400 bg-clip-text text-transparent">
-            Winners Hub
+          <h1 className="text-3xl font-extrabold text-text-primary tracking-tight bg-gradient-to-r from-orange-600 to-amber-600 dark:from-orange-400 dark:to-amber-400 bg-clip-text text-transparent">
+            Telocalizo Chats
           </h1>
           <p className="text-sm text-text-secondary mt-2">
             {isRegistering ? 'Crea una cuenta para comenzar' : 'Inicia sesión para acceder a tu panel'}
@@ -162,7 +162,7 @@ export default function LoginPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Juan Pérez"
-                className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-orange-500 transition-colors"
               />
             </div>
           )}
@@ -177,7 +177,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu@correo.com o admin"
-              className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+              className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-orange-500 transition-colors"
             />
           </div>
 
@@ -192,7 +192,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                className="w-full bg-slate-100/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-text-primary rounded-lg pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-orange-500 transition-colors"
               />
               <button
                 type="button"
@@ -207,7 +207,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg py-3 text-sm font-semibold transition-all shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-4 cursor-pointer"
+            className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded-lg py-3 text-sm font-semibold transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-4 cursor-pointer"
           >
             {loading ? 'Procesando...' : isRegistering ? 'Registrarse' : 'Iniciar Sesión'}
           </button>

@@ -31,7 +31,7 @@ export function UserManagement() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight italic">Gestión de Usuarios</h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">Controla quién tiene acceso y qué puede ver en Winners Hub.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Controla quién tiene acceso y qué puede ver en Telocalizo Chats.</p>
         </div>
         <Button>
           <UserPlus size={18} /> Invitar usuario
@@ -39,7 +39,7 @@ export function UserManagement() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-600/20">
+        <div className="bg-brand rounded-2xl p-6 text-white shadow-lg shadow-brand/20">
            <div className="flex justify-between items-start mb-4">
               <Users size={24} className="opacity-80" />
               <Badge variant="info" className="bg-white/20 text-white border-white/30">{state.users.length} Total</Badge>

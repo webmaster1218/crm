@@ -44,6 +44,7 @@ const allGroups = [
     title: 'Pedidos',
     items: [
       { id: 'pedidos', label: 'Pedidos', icon: ShoppingCart, path: '/pedidos' },
+      { id: 'pedidos-confirmar', label: 'Por Confirmar', icon: CheckSquare, path: '/pedidos/confirmar' },
     ],
   },
   {

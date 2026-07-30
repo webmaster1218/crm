@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, RefreshCw, ShoppingBag, MapPin, User, Mail, Phone, Calendar, Clipboard, CreditCard, Box, Tag, Clock, RotateCcw, Receipt, Globe, Hash } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ShoppingBag, MapPin, User, Mail, Phone, Calendar, Clipboard, CreditCard, Box, Tag, Clock, RotateCcw, Receipt, Globe, Hash, Truck } from 'lucide-react';
 import { Button } from '../shared/Button';
 
 import { useRouter } from 'next/navigation';
@@ -18,6 +18,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fulfilling, setFulfilling] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [activeSection, setActiveSection] = useState<'items' | 'customer' | 'payment' | 'notes'>('items');
   
   // Note states (Shopify only)
   const [editingNote, setEditingNote] = useState(false);
@@ -45,9 +46,40 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     setLoading(true);
     setErrorMessage(null);
     try {
-      // 1. Fetch from our local pedidos API
-      const localRes = await fetch(`/api/pedidos?id=${encodeURIComponent(orderId)}`, { cache: 'no-store' });
-      const localOrder = await localRes.json();
+      const decodedId = decodeURIComponent(orderId);
+      let localOrder = null;
+      let isShopifyDirect = false;
+      let shopifyGID = '';
+
+      if (decodedId.startsWith('gid://shopify/Order/') || (String(decodedId).length > 8 && /^\d+$/.test(decodedId))) {
+        isShopifyDirect = true;
+        shopifyGID = decodedId.startsWith('gid://') ? decodedId : `gid://shopify/Order/${decodedId}`;
+        
+        // Try fetching locally first to get Hoko database id if possible
+        try {
+          const localRes = await fetch(`/api/pedidos?id=${encodeURIComponent(decodedId)}`, { cache: 'no-store' });
+          if (localRes.ok) {
+            localOrder = await localRes.json();
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        if (!localOrder) {
+          localOrder = {
+            canal: 'pagina_web',
+            shopify_order_id: shopifyGID,
+            db_id: decodedId.split('/').pop() || '0',
+            cliente_id: shopifyGID,
+          };
+        }
+      } else {
+        // 1. Fetch from our local pedidos API
+        const localRes = await fetch(`/api/pedidos?id=${encodeURIComponent(decodedId)}`, { cache: 'no-store' });
+        if (localRes.ok) {
+          localOrder = await localRes.json();
+        }
+      }
       
       if (!localOrder) {
         setErrorMessage(`No se pudo encontrar el pedido con ID "${orderId}" en la base de datos.`);
@@ -139,6 +171,8 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
             setOrder(merged);
             setLoading(false);
             return;
+          } else {
+            console.warn("Shopify API returned null order for GID:", localOrder.shopify_order_id);
           }
         } catch (shopifyError) {
           console.error("Error fetching from Shopify, falling back to local data:", shopifyError);
@@ -231,7 +265,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
       
       setOrder(compatibleOrder);
     } catch (error: any) {
-      setErrorMessage(error.message || 'Error de conexión');
+      setErrorMessage(error.message || 'Error de conexiÃ³n');
     } finally {
       setLoading(false);
     }
@@ -245,7 +279,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     if (!order || fulfilling) return;
     const fulfillmentOrderId = order.fulfillmentOrders?.edges?.[0]?.node?.id;
     if (!fulfillmentOrderId) {
-      alert("No se encontró una orden de preparación (FulfillmentOrder) válida.");
+      alert("No se encontrÃ³ una orden de preparaciÃ³n (FulfillmentOrder) vÃ¡lida.");
       return;
     }
 
@@ -277,12 +311,12 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
       if (errors && errors.length > 0) {
         alert(`Error de Shopify: ${errors[0].message}`);
       } else {
-        alert("¡Pedido marcado como PREPARADO con éxito!");
+        alert("Â¡Pedido marcado como PREPARADO con Ã©xito!");
         fetchOrderDetails();
       }
     } catch (error) {
       console.error("Error fulfilling order:", error);
-      alert("Error de conexión al marcar el pedido como preparado.");
+      alert("Error de conexiÃ³n al marcar el pedido como preparado.");
     } finally {
       setFulfilling(false);
     }
@@ -312,7 +346,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
       if (errors && errors.length > 0) {
         alert(`Error de Shopify: ${errors[0].message}`);
       } else {
-        alert("¡Pedido marcado como PAGADO con éxito!");
+        alert("Â¡Pedido marcado como PAGADO con Ã©xito!");
         fetchOrderDetails();
       }
     } catch (error) {
@@ -350,7 +384,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         fetchOrderDetails();
       }
     } catch (error) {
-      alert('Error de conexión al guardar la nota.');
+      alert('Error de conexiÃ³n al guardar la nota.');
     } finally {
       setSavingNote(false);
     }
@@ -392,7 +426,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         fetchOrderDetails();
       }
     } catch (error) {
-      alert('Error de conexión al actualizar el cliente.');
+      alert('Error de conexiÃ³n al actualizar el cliente.');
     } finally {
       setSavingCustomer(false);
     }
@@ -427,7 +461,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         fetchOrderDetails();
       }
     } catch (error) {
-      alert('Error de conexión al guardar etiquetas.');
+      alert('Error de conexiÃ³n al guardar etiquetas.');
     } finally {
       setSavingTags(false);
     }
@@ -477,7 +511,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         fetchOrderDetails();
       }
     } catch (error) {
-      alert('Error de conexión al actualizar la dirección.');
+      alert('Error de conexiÃ³n al actualizar la direcciÃ³n.');
     } finally {
       setSavingAddress(false);
     }
@@ -534,7 +568,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     return (
       <div className="p-20 text-center flex flex-col items-center justify-center gap-3">
         <p className="text-danger font-black">Error al cargar pedido</p>
-        <p className="text-text-muted text-xs">{errorMessage || 'No se pudo cargar la información del pedido.'}</p>
+        <p className="text-text-muted text-xs">{errorMessage || 'No se pudo cargar la informaciÃ³n del pedido.'}</p>
         <div className="flex gap-2 mt-2">
           <Button onClick={fetchOrderDetails} variant="outline">Reintentar</Button>
           <Button onClick={onBack}>Volver a Pedidos</Button>
@@ -548,237 +582,340 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
   const fulfillment = getFulfillmentStatusLabel(order.displayFulfillmentStatus);
   const totalItems = order.lineItems?.edges?.reduce((sum: number, edge: any) => sum + (edge.node.quantity || 1), 0) || 1;
 
+  const total = formatPrice(order.totalPriceSet?.presentmentMoney?.amount);
+
   return (
-    <div className="space-y-3 w-full px-4 md:px-6 py-2 animate-in fade-in duration-500">
-      
-      {/* Top Navigation */}
-      <div className="flex items-center justify-between">
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs font-black uppercase text-text-muted hover:text-text-primary transition-colors"
-        >
-          <ArrowLeft size={14} />
-          <span>Volver a Pedidos</span>
-        </button>
-      </div>
+    <div className="w-full animate-in fade-in duration-300">
 
-      {/* Header Info */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b border-slate-100 dark:border-slate-800/50 pb-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black tracking-tight text-text-primary">
-              {order.name}
-            </h1>
-            <span className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-full border ${payment.class}`}>
-              {payment.text}
-            </span>
-            <span className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-full ${fulfillment.class}`}>
-              {fulfillment.text}
-            </span>
-            <span className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-md border ${isShopify ? 'bg-brand/10 border-brand/20 text-brand' : 'bg-success/10 border-success/20 text-success'}`}>
-              {isShopify ? 'Shopify' : order.canal}
-            </span>
-          </div>
-          <p className="text-text-muted text-xs font-medium mt-1.5 flex items-center gap-1.5">
-            <Calendar size={13} />
-            <span>{new Date(order.createdAt).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short' })}</span>
-            {order.confirmationNumber && (
-              <span className="ml-2 flex items-center gap-1">
-                <Hash size={11} />
-                <span className="font-bold">{order.confirmationNumber}</span>
-              </span>
-            )}
-          </p>
-        </div>
+      {/* â•â•â• HERO HEADER â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl mx-4 md:mx-6 mt-2 mb-5 shadow-2xl border border-white/5">
+        {/* ambient glow blobs */}
+        <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-brand/15 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-brand/8 blur-3xl pointer-events-none" />
 
-        <div className="flex flex-wrap gap-2">
-          {isShopify && order.displayFulfillmentStatus === 'UNFULFILLED' && (
-            <Button 
-              variant="primary" 
-              onClick={handleFulfill} 
-              disabled={fulfilling}
-              className="h-10 text-xs font-black uppercase tracking-wider"
-            >
-              {fulfilling ? 'Preparando...' : 'Solicitar preparación'}
-            </Button>
-          )}
-        </div>
-      </div>
+        <div className="relative px-6 md:px-8 pt-6 pb-5">
+          {/* Back */}
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/30 hover:text-white/70 transition-colors mb-5"
+          >
+            <ArrowLeft size={12} />
+            <span>Volver</span>
+          </button>
 
-      {/* Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        
-        {/* Left Column */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Fulfillment Box */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-brand/5 to-transparent px-6 py-4 border-b border-slate-100 dark:border-slate-800/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-brand-bg text-brand flex items-center justify-center">
-                    <Box size={16} />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-xs uppercase tracking-wider text-text-primary">
-                      {fulfillment.text}
-                    </h3>
-                    <p className="text-[10px] font-bold text-text-muted mt-0.5">
-                      {totalItems} {totalItems === 1 ? 'artículo' : 'artículos'}
-                    </p>
-                  </div>
-                </div>
-                {order.hoko_order_id && (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-bg rounded-xl border border-brand/15">
-                      <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-                      <span className="text-[10px] font-black text-brand uppercase tracking-wider">Hoko: #{order.hoko_order_id}</span>
-                    </div>
-                  </div>
+          {/* Main hero row */}
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+            <div className="space-y-2.5">
+              {/* Status badges */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full border text-white ${
+                  order.displayFinancialStatus === 'PAID' ? 'bg-emerald-600/80 border-emerald-500/30' :
+                  order.displayFinancialStatus === 'PENDING' ? 'bg-amber-600/80 border-amber-500/30' :
+                  'bg-rose-600/80 border-rose-500/30'
+                }`}>
+                  {payment.text}
+                </span>
+                <span className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full text-white ${
+                  order.displayFulfillmentStatus === 'FULFILLED' ? 'bg-emerald-600/80' : 
+                  order.displayFulfillmentStatus === 'UNFULFILLED' ? 'bg-amber-600/80' : 'bg-blue-600/80'
+                }`}>
+                  {fulfillment.text}
+                </span>
+                <span className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full border text-white ${
+                  isShopify ? 'bg-brand/20 border-brand/30' : 'bg-emerald-500/20 border-emerald-500/30'
+                }`}>
+                  {isShopify ? 'Shopify' : order.canal}
+                </span>
+              </div>
+
+              {/* Order number */}
+              <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-none">
+                {order.name}
+              </h1>
+
+              {/* Meta */}
+              <p className="text-white/50 text-[11px] font-medium flex flex-wrap items-center gap-2">
+                <Calendar size={12} />
+                <span>{new Date(order.createdAt).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short' })}</span>
+                {order.confirmationNumber && (
+                  <>
+                    <span className="text-white/20">•</span>
+                    <Hash size={11} />
+                    <span className="font-bold text-white/75">{order.confirmationNumber}</span>
+                  </>
+                )}
+              </p>
+            </div>
+
+            {/* Total + actions */}
+            <div className="flex flex-col items-start md:items-end gap-3 shrink-0">
+              <div className="md:text-right">
+                <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-0.5">Total del pedido</p>
+                <p className="text-3xl font-black text-white">{total}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {isShopify && order.displayFulfillmentStatus === 'UNFULFILLED' && (
+                  <Button
+                    variant="primary"
+                    onClick={handleFulfill}
+                    disabled={fulfilling}
+                    className="h-9 text-[11px] font-black uppercase tracking-wide bg-brand border-0 text-white"
+                  >
+                    {fulfilling ? 'Preparando...' : 'Solicitar Preparación'}
+                  </Button>
+                )}
+                {isShopify && order.displayFinancialStatus === 'PENDING' && (
+                  <Button
+                    variant="outline"
+                    onClick={handleMarkAsPaid}
+                    disabled={paying}
+                    className="h-9 text-[11px] font-black uppercase tracking-wide border-white/20 text-white hover:bg-white/10"
+                  >
+                    {paying ? 'Procesando...' : 'Marcar Pagado'}
+                  </Button>
                 )}
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Line Items */}
-            <div className="px-6 py-3 space-y-1">
+        {/* Hoko strip */}
+        {order.hoko_order_id && (
+          <div className="relative border-t border-white/8 px-6 md:px-8 py-3 flex items-center gap-2.5">
+            <Truck size={13} className="text-brand/70 shrink-0" />
+            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Envío Hoko activo</span>
+            <span className="ml-1 px-2 py-0.5 bg-brand/20 border border-brand/20 rounded-full text-white text-[10px] font-black">
+              #{order.hoko_order_id}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* BODY: 5-col grid */}
+      <div className="px-4 md:px-6 grid grid-cols-1 xl:grid-cols-5 gap-4 pb-10">
+
+        {/* LEFT COL (3/5): Items + Financials + Notes */}
+        <div className="xl:col-span-3 flex flex-col gap-4">
+
+          {/* Items card */}
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+              <div className="flex items-center gap-2">
+                <ShoppingBag size={14} className="text-text-muted" />
+                <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">
+                  Artículos · {totalItems}
+                </span>
+              </div>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${fulfillment.class}`}>
+                {fulfillment.text}
+              </span>
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {order.lineItems?.edges?.map((edge: any) => {
                 const item = edge.node;
                 return (
-                  <div key={item.id} className="group rounded-2xl bg-card-alt/50 hover:bg-card-alt transition-colors px-4 py-3 flex gap-4 items-center">
-                    <div className="w-12 h-12 rounded-xl bg-card border border-slate-200/50 dark:border-slate-800/40 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                      {item.image?.url ? (
-                        <img src={item.image.url} alt={item.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <img src="/nanotrack.png" alt={item.title} className="w-full h-full object-cover" />
-                      )}
+                  <div key={item.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors group">
+                    {/* thumb */}
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200/40 dark:border-slate-700/30">
+                      <img
+                        src={item.image?.url || '/nanotrack.png'}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/nanotrack.png'; }}
+                      />
                     </div>
-
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-[13px] font-bold text-text-primary leading-tight">
-                        {item.title}
-                      </h4>
+                    {/* info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold text-text-primary leading-tight truncate">{item.title}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-bold text-text-muted bg-card px-1.5 py-0.5 rounded-md uppercase tracking-wider">
-                          SKU: {item.sku || 'N/A'}
-                        </span>
-                        <span className="text-[10px] font-bold text-text-muted">
-                          ×{item.quantity}
-                        </span>
+                        {item.sku && (
+                          <span className="text-[9px] font-bold text-text-muted bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">
+                            {item.sku}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-text-muted">x{item.quantity}</span>
                       </div>
                     </div>
-
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-black text-text-primary">
-                        {formatPrice(item.originalUnitPriceSet?.presentmentMoney?.amount)}
-                      </p>
-                    </div>
+                    {/* price */}
+                    <p className="text-sm font-black text-text-primary shrink-0">
+                      {formatPrice(item.originalUnitPriceSet?.presentmentMoney?.amount)}
+                    </p>
                   </div>
                 );
               })}
             </div>
-            
-            {/* Actions */}
-            {isShopify && (
-              <div className="px-6 py-4 bg-gradient-to-r from-brand/5 to-transparent border-t border-slate-100 dark:border-slate-800/50">
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {order.displayFinancialStatus === 'PENDING' && (
-                    <Button 
-                      variant="outline" 
-                      onClick={handleMarkAsPaid} 
-                      disabled={paying}
-                      className="h-9 text-[11px] font-black uppercase tracking-wider px-4"
-                    >
-                      {paying ? 'Procesando...' : 'Marcar como pagado'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Pricing Box */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-4">
-            <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center gap-2">
-              <CreditCard size={15} className="text-text-muted" />
-              <span>Detalles Financieros</span>
-            </h3>
-
-            <div className="space-y-2 text-xs font-medium text-text-secondary">
-              <div className="flex justify-between">
-                <span>Subtotal ({totalItems} {totalItems === 1 ? 'artículo' : 'artículos'})</span>
-                <span className="text-text-primary font-bold">{formatPrice(order.subtotalPriceSet?.presentmentMoney?.amount)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Envío</span>
-                <span className="text-text-primary font-bold">{formatPrice(order.totalShippingPriceSet?.presentmentMoney?.amount)}</span>
-              </div>
-              <div className="flex justify-between border-t border-slate-100 dark:border-slate-800/50 pt-3 text-sm font-black text-text-primary">
-                <span>Total</span>
-                <span>{formatPrice(order.totalPriceSet?.presentmentMoney?.amount)}</span>
-              </div>
+          {/* Financials card */}
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+              <CreditCard size={14} className="text-text-muted" />
+              <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Resumen de Pago</span>
             </div>
-
-            <div className="border-t border-slate-100 dark:border-slate-800/50 pt-3 space-y-2 text-xs font-medium text-text-secondary">
-              {order.paymentGatewayNames && order.paymentGatewayNames.length > 0 && (
-                <div className="flex justify-between">
-                  <span>Pasarela de pago</span>
-                  <span className="text-text-primary font-bold text-right">{order.paymentGatewayNames.map(translateGatewayName).join(', ')}</span>
+            <div className="px-5 py-4 space-y-2.5 text-xs">
+              <div className="flex justify-between text-text-secondary">
+                <span>Subtotal</span>
+                <span className="font-bold text-text-primary">{formatPrice(order.subtotalPriceSet?.presentmentMoney?.amount)}</span>
+              </div>
+              <div className="flex justify-between text-text-secondary">
+                <span>Envío</span>
+                <span className="font-bold text-text-primary">{formatPrice(order.totalShippingPriceSet?.presentmentMoney?.amount)}</span>
+              </div>
+              {order.paymentGatewayNames?.length > 0 && (
+                <div className="flex justify-between text-text-secondary">
+                  <span>Método de pago</span>
+                  <span className="font-bold text-text-primary text-right">{order.paymentGatewayNames.map(translateGatewayName).join(', ')}</span>
                 </div>
               )}
+              <div className="flex justify-between border-t border-slate-100 dark:border-slate-800/50 pt-2.5 text-sm font-black text-text-primary">
+                <span>Total</span>
+                <span>{total}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Right Column */}
-        <div className="space-y-6">
-          
-          {/* Notes Box (Shopify only) */}
+          {/* Notes card — Shopify only */}
           {isShopify && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center justify-between">
-                <span>Notas del pedido</span>
-                <Clipboard size={14} className="text-text-muted" />
-              </h3>
-              {editingNote ? (
-                <div className="space-y-2">
-                  <textarea
-                    className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl p-3 resize-none focus:outline-none focus:border-brand"
-                    rows={3}
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="Agregar nota..."
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <Button variant="ghost" onClick={() => setEditingNote(false)} className="h-8 text-[10px]">Cancelar</Button>
-                    <Button variant="primary" onClick={handleSaveNote} disabled={savingNote} className="h-8 text-[10px]">
-                      {savingNote ? 'Guardando...' : 'Guardar nota'}
-                    </Button>
-                  </div>
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+                <div className="flex items-center gap-2">
+                  <Clipboard size={14} className="text-text-muted" />
+                  <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Nota del Pedido</span>
                 </div>
-              ) : (
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-xs text-text-muted font-medium italic flex-1">
-                    {order.note || 'No hay notas.'}
-                  </p>
+                {!editingNote && (
                   <button
                     onClick={() => { setNoteText(order.note || ''); setEditingNote(true); }}
-                    className="shrink-0 text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
+                    className="text-[10px] font-black text-brand hover:text-brand/70 uppercase tracking-wider"
                   >
                     Editar
                   </button>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="px-5 py-4">
+                {editingNote ? (
+                  <div className="space-y-2.5">
+                    <textarea
+                      className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl p-3 resize-none focus:outline-none focus:border-brand"
+                      rows={3}
+                      value={noteText}
+                      onChange={(e) => setNoteText(e.target.value)}
+                      placeholder="Escribe una nota..."
+                      autoFocus
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="ghost" onClick={() => setEditingNote(false)} className="h-8 text-[10px]">Cancelar</Button>
+                      <Button variant="primary" onClick={handleSaveNote} disabled={savingNote} className="h-8 text-[10px]">
+                        {savingNote ? 'Guardando...' : 'Guardar nota'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-muted italic leading-relaxed">
+                    {order.note || 'Sin notas para este pedido.'}
+                  </p>
+                )}
+              </div>
             </div>
           )}
+        </div>
 
-          {/* Shipping Address Box */}
+        {/* RIGHT COL (2/5): Customer + Address + Tags */}
+        <div className="xl:col-span-2 flex flex-col gap-4">
+
+          {/* Customer card */}
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+              <div className="flex items-center gap-2">
+                <User size={14} className="text-text-muted" />
+                <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Cliente</span>
+              </div>
+              {isShopify && order.customer && !editingCustomer && (
+                <button
+                  onClick={() => {
+                    setCustomerForm({
+                      firstName: order.customer?.firstName || '',
+                      lastName: order.customer?.lastName || '',
+                      email: order.customer?.email || '',
+                      phone: order.customer?.phone || ''
+                    });
+                    setEditingCustomer(true);
+                  }}
+                  className="text-[10px] font-black text-brand hover:text-brand/70 uppercase tracking-wider"
+                >
+                  Editar
+                </button>
+              )}
+            </div>
+            <div className="px-5 py-4">
+              {order.customer ? (
+                isShopify && editingCustomer ? (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Nombre</label>
+                        <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={customerForm.firstName} onChange={(e) => setCustomerForm(f => ({ ...f, firstName: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Apellido</label>
+                        <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={customerForm.lastName} onChange={(e) => setCustomerForm(f => ({ ...f, lastName: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Email</label>
+                      <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={customerForm.email} onChange={(e) => setCustomerForm(f => ({ ...f, email: e.target.value }))} />
+                    </div>
+                    <div className="flex gap-2 justify-end pt-1">
+                      <Button variant="ghost" onClick={() => setEditingCustomer(false)} className="h-8 text-[10px]">Cancelar</Button>
+                      <Button variant="primary" onClick={handleSaveCustomer} disabled={savingCustomer} className="h-8 text-[10px]">{savingCustomer ? 'Guardando...' : 'Guardar'}</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-brand/10 flex items-center justify-center shrink-0">
+                        <User size={15} className="text-brand" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-sm text-text-primary truncate">{order.customer.firstName} {order.customer.lastName}</p>
+                        <p className="text-[10px] text-text-muted">{order.customer.numberOfOrders || 1} pedido(s)</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 text-xs text-text-secondary">
+                      {order.customer.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail size={11} className="text-text-muted shrink-0" />
+                          <span className="truncate">{order.customer.email}</span>
+                        </div>
+                      )}
+                      {order.customer.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone size={11} className="text-text-muted shrink-0" />
+                          <span>{order.customer.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => router.push(`/contacts?id=${encodeURIComponent(order.cliente_id || order.customer?.phone || '')}`)}
+                      className="w-full py-1.5 text-[10px] font-black text-brand border border-brand/20 rounded-xl hover:bg-brand/5 transition-colors uppercase tracking-wider"
+                    >
+                      Ver perfil →
+                    </button>
+                  </div>
+                )
+              ) : (
+                <p className="text-xs text-text-muted italic">Sin información de cliente.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Shipping address card */}
           {order.shippingAddress && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-4">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center justify-between">
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
                 <div className="flex items-center gap-2">
-                  <MapPin size={15} className="text-text-muted" />
-                  <span>Dirección de envío</span>
+                  <MapPin size={14} className="text-text-muted" />
+                  <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Envío</span>
                 </div>
                 {isShopify && !editingAddress && (
                   <button
@@ -797,195 +934,68 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                       });
                       setEditingAddress(true);
                     }}
-                    className="text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
+                    className="text-[10px] font-black text-brand hover:text-brand/70 uppercase tracking-wider"
                   >
                     Editar
                   </button>
                 )}
-              </h3>
-
-              {isShopify && editingAddress ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Nombre</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={addressForm.firstName}
-                        onChange={(e) => setAddressForm(f => ({ ...f, firstName: e.target.value }))}
-                      />
+              </div>
+              <div className="px-5 py-4">
+                {isShopify && editingAddress ? (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Nombre</label>
+                        <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={addressForm.firstName} onChange={(e) => setAddressForm(f => ({ ...f, firstName: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Apellido</label>
+                        <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={addressForm.lastName} onChange={(e) => setAddressForm(f => ({ ...f, lastName: e.target.value }))} />
+                      </div>
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Apellido</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={addressForm.lastName}
-                        onChange={(e) => setAddressForm(f => ({ ...f, lastName: e.target.value }))}
-                      />
+                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Dirección</label>
+                      <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={addressForm.address1} onChange={(e) => setAddressForm(f => ({ ...f, address1: e.target.value }))} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Ciudad</label>
+                        <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={addressForm.city} onChange={(e) => setAddressForm(f => ({ ...f, city: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-text-muted uppercase tracking-widest block mb-1">Teléfono</label>
+                        <input className="w-full text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand" value={addressForm.phone} onChange={(e) => setAddressForm(f => ({ ...f, phone: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-1">
+                      <Button variant="ghost" onClick={() => setEditingAddress(false)} className="h-8 text-[10px]">Cancelar</Button>
+                      <Button variant="primary" onClick={handleSaveAddress} disabled={savingAddress} className="h-8 text-[10px]">{savingAddress ? 'Guardando...' : 'Guardar'}</Button>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Dirección</label>
-                    <input
-                      className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                      value={addressForm.address1}
-                      onChange={(e) => setAddressForm(f => ({ ...f, address1: e.target.value }))}
-                    />
+                ) : (
+                  <div className="space-y-1 text-xs text-text-secondary">
+                    <p className="font-bold text-text-primary">{order.shippingAddress.firstName} {order.shippingAddress.lastName}</p>
+                    <p>{order.shippingAddress.address1}</p>
+                    <p>{order.shippingAddress.city}</p>
+                    {order.shippingAddress.phone && (
+                      <div className="flex items-center gap-1.5 pt-1.5">
+                        <Phone size={11} className="text-text-muted" />
+                        <span>{order.shippingAddress.phone}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Ciudad</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={addressForm.city}
-                        onChange={(e) => setAddressForm(f => ({ ...f, city: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Teléfono</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={addressForm.phone}
-                        onChange={(e) => setAddressForm(f => ({ ...f, phone: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    <Button variant="ghost" onClick={() => setEditingAddress(false)} className="h-8 text-[10px]">Cancelar</Button>
-                    <Button variant="primary" onClick={handleSaveAddress} disabled={savingAddress} className="h-8 text-[10px]">
-                      {savingAddress ? 'Guardando...' : 'Guardar dirección'}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-text-secondary space-y-1 font-medium">
-                  <p className="font-black text-text-primary">
-                    {order.shippingAddress.firstName} {order.shippingAddress.lastName}
-                  </p>
-                  <p>{order.shippingAddress.address1}</p>
-                  <p>{order.shippingAddress.city}</p>
-                  {order.shippingAddress.phone && (
-                    <p className="pt-2 flex items-center gap-1.5">
-                      <Phone size={11} className="text-text-muted" />
-                      <span>{order.shippingAddress.phone}</span>
-                    </p>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
-          {/* Customer Profile Box */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-4">
-            <h3 className="font-black text-xs uppercase tracking-wider text-text-primary border-b border-slate-100 dark:border-slate-800/50 pb-3 flex items-center justify-between">
-              <span>Cliente</span>
-              {isShopify && order.customer && !editingCustomer && (
-                <button
-                  onClick={() => {
-                    setCustomerForm({
-                      firstName: order.customer?.firstName || '',
-                      lastName: order.customer?.lastName || '',
-                      email: order.customer?.email || '',
-                      phone: order.customer?.phone || ''
-                    });
-                    setEditingCustomer(true);
-                  }}
-                  className="text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
-                >
-                  Editar
-                </button>
-              )}
-            </h3>
-
-            {order.customer ? (
-              isShopify && editingCustomer ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Nombre</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={customerForm.firstName}
-                        onChange={(e) => setCustomerForm(f => ({ ...f, firstName: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Apellido</label>
-                      <input
-                        className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                        value={customerForm.lastName}
-                        onChange={(e) => setCustomerForm(f => ({ ...f, lastName: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">Email</label>
-                    <input
-                      className="w-full text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand mt-1"
-                      value={customerForm.email}
-                      onChange={(e) => setCustomerForm(f => ({ ...f, email: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    <Button variant="ghost" onClick={() => setEditingCustomer(false)} className="h-8 text-[10px]">Cancelar</Button>
-                    <Button variant="primary" onClick={handleSaveCustomer} disabled={savingCustomer} className="h-8 text-[10px]">
-                      {savingCustomer ? 'Guardando...' : 'Guardar'}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4 text-xs font-medium text-text-secondary">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-brand-bg text-brand rounded-xl flex items-center justify-center font-black">
-                      <User size={16} />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-sm text-text-primary">
-                        {order.customer.firstName} {order.customer.lastName}
-                      </h4>
-                      <p className="text-[10px] font-bold text-text-muted uppercase mt-0.5">
-                        {order.customer.numberOfOrders || 1} {order.customer.numberOfOrders === 1 ? 'pedido' : 'pedidos'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2.5 pt-2">
-                    {order.customer.email && (
-                      <div className="flex items-center gap-2.5">
-                        <Mail size={13} className="text-text-muted shrink-0" />
-                        <span className="truncate">{order.customer.email}</span>
-                      </div>
-                    )}
-                    {order.customer.phone && (
-                      <div className="flex items-center gap-2.5">
-                        <Phone size={13} className="text-text-muted shrink-0" />
-                        <span>{order.customer.phone}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800/50">
-                    <Button
-                      variant="ghost"
-                      onClick={() => router.push(`/contacts?id=${encodeURIComponent(order.cliente_id || order.customer?.phone || '')}`)}
-                      className="text-[10px] font-bold text-brand hover:text-brand/80 hover:bg-transparent p-0 h-auto"
-                    >
-                      Ver Perfil del Cliente &rarr;
-                    </Button>
-                  </div>
-                </div>
-              )
-            ) : (
-              <p className="text-xs text-text-muted italic">No hay información de cliente.</p>
-            )}
-          </div>
-
-          {/* Tags Box */}
+          {/* Tags card — Shopify only */}
           {isShopify && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-              <h3 className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center justify-between">
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
                 <div className="flex items-center gap-2">
-                  <Tag size={13} className="text-text-muted" />
-                  <span>Etiquetas</span>
+                  <Tag size={14} className="text-text-muted" />
+                  <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Etiquetas</span>
                 </div>
                 {!editingTags && (
                   <button
@@ -994,92 +1004,53 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                       setTagsList(current);
                       setEditingTags(true);
                     }}
-                    className="text-[10px] font-black text-brand hover:text-brand/80 uppercase tracking-wider"
+                    className="text-[10px] font-black text-brand hover:text-brand/70 uppercase tracking-wider"
                   >
                     Editar
                   </button>
                 )}
-              </h3>
-              {editingTags ? (
-                <div className="space-y-2">
+              </div>
+              <div className="px-5 py-4">
+                {editingTags ? (
+                  <div className="space-y-2.5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {tagsList.map((tag, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-brand/10 text-brand text-[10px] font-black uppercase rounded-full">
+                          {tag}
+                          <button onClick={() => setTagsList(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-danger ml-0.5">×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        className="flex-1 text-xs text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-1.5 focus:outline-none focus:border-brand"
+                        placeholder="Nueva etiqueta..."
+                        value={newTagInput}
+                        onChange={(e) => setNewTagInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && newTagInput.trim()) { setTagsList(prev => [...prev, newTagInput.trim()]); setNewTagInput(''); }}}
+                      />
+                      <button onClick={() => { if (newTagInput.trim()) { setTagsList(prev => [...prev, newTagInput.trim()]); setNewTagInput(''); }}} className="px-3 py-1.5 bg-brand text-white text-[10px] font-black rounded-xl">+</button>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="ghost" onClick={() => { setEditingTags(false); setNewTagInput(''); }} className="h-8 text-[10px]">Cancelar</Button>
+                      <Button variant="primary" onClick={handleSaveTags} disabled={savingTags} className="h-8 text-[10px]">{savingTags ? 'Guardando...' : 'Guardar'}</Button>
+                    </div>
+                  </div>
+                ) : (
                   <div className="flex flex-wrap gap-1.5">
-                    {tagsList.map((tag, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-brand-bg text-brand text-[10px] font-black uppercase rounded-lg">
-                        {tag}
-                        <button
-                          onClick={() => setTagsList(prev => prev.filter((_, idx) => idx !== i))}
-                          className="hover:text-danger ml-0.5"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
+                    {(Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [])).length > 0
+                      ? (Array.isArray(order.tags) ? order.tags : order.tags.split(',').map((t: string) => t.trim()).filter(Boolean)).map((tag: string, i: number) => (
+                          <span key={i} className="px-2.5 py-0.5 bg-brand/10 text-brand text-[10px] font-black uppercase rounded-full">{tag}</span>
+                        ))
+                      : <p className="text-[10px] text-text-muted italic">Sin etiquetas.</p>
+                    }
                   </div>
-                  <div className="flex gap-2">
-                    <input
-                      className="flex-1 text-xs font-medium text-text-primary bg-card-alt border border-slate-200/50 dark:border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-brand"
-                      placeholder="Agregar etiqueta..."
-                      value={newTagInput}
-                      onChange={(e) => setNewTagInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newTagInput.trim()) {
-                          setTagsList(prev => [...prev, newTagInput.trim()]);
-                          setNewTagInput('');
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        if (newTagInput.trim()) {
-                          setTagsList(prev => [...prev, newTagInput.trim()]);
-                          setNewTagInput('');
-                        }
-                      }}
-                      className="px-3 py-2 bg-brand text-white text-[10px] font-black uppercase rounded-xl hover:bg-brand/90"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    <Button variant="ghost" onClick={() => { setEditingTags(false); setNewTagInput(''); }} className="h-8 text-[10px]">Cancelar</Button>
-                    <Button variant="primary" onClick={handleSaveTags} disabled={savingTags} className="h-8 text-[10px]">
-                      {savingTags ? 'Guardando...' : 'Guardar'}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {(Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [])).length > 0 ? (
-                    (Array.isArray(order.tags) ? order.tags : (order.tags ? order.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [])).map((tag: string, i: number) => (
-                      <span key={i} className="inline-flex items-center gap-0.5 px-2 py-1 bg-brand-bg text-brand text-[10px] font-black uppercase rounded-lg">
-                        {tag}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-[10px] text-text-muted italic">Sin etiquetas</p>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
-
-          {/* Channel Info Box */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-sm p-6 space-y-3">
-            <h3 className="font-black text-xs uppercase tracking-wider text-text-primary">
-              Origen del Pedido
-            </h3>
-            <div className="p-3 bg-card-alt rounded-2xl border border-slate-200/50 dark:border-slate-800">
-              <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Canal de ventas</p>
-              <p className="text-xs font-black text-text-primary mt-1 uppercase">
-                {order.canal === 'pagina_web' ? 'Shopify (Tienda Online)' : order.canal}
-              </p>
-            </div>
-          </div>
-
         </div>
-
       </div>
-
     </div>
   );
 }

@@ -4,7 +4,7 @@ import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, ExternalLink, RefreshCw, User, MapPin, Package,
-  Truck, FileText, ClipboardList, X
+  Truck, FileText, ClipboardList, X, Calendar
 } from 'lucide-react';
 import { HokoOrder, HokoCity, HOKO_ORDER_STATES, HOKO_GUIDE_STATES_CO } from '../../../../types';
 import { Button } from '../../../../components/shared/Button';
@@ -89,20 +89,19 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
     fetchOrderDetail();
   }, [orderId]);
 
-  // Helpers for badge styles
   const stateColor = (state: string) => {
     switch (state) {
       case '4': // Finalizada
-        return 'bg-success-bg text-success border border-success/20';
+        return 'bg-emerald-600/80 text-white border-emerald-500/30 border';
       case '5': // Cancelada
-        return 'bg-danger-bg text-danger border border-danger/20';
+        return 'bg-rose-600/80 text-white border-rose-500/30 border';
       case '6': // En Novedad
-        return 'bg-warning-bg text-warning border border-warning/20';
+        return 'bg-amber-600/80 text-white border-amber-500/30 border';
       case '2': // En proceso
       case '3': // Despachada
-        return 'bg-info-bg text-info border border-info/20';
+        return 'bg-blue-600/80 text-white border-blue-500/30 border';
       default:
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+        return 'bg-white/10 text-white border border-white/15';
     }
   };
 
@@ -239,164 +238,197 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div className="space-y-6 w-full px-4 md:px-8 py-6 animate-in fade-in duration-500">
-      
-      {/* Top Header Navigation */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 bg-card p-6 rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-md">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/ordenes')}
-            className="p-2.5 rounded-xl hover:bg-card-alt text-text-muted hover:text-text-primary transition-colors">
-            <ArrowLeft size={18} />
+    <div className="w-full animate-in fade-in duration-300">
+
+      {/* ═══ HERO HEADER ══════════════════════════════════════ */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl mx-4 md:mx-6 mt-2 mb-5 shadow-2xl border border-white/5">
+        {/* ambient glow blobs */}
+        <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-brand/15 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 -left-16 w-56 h-56 rounded-full bg-brand/8 blur-3xl pointer-events-none" />
+
+        <div className="relative px-6 md:px-8 pt-6 pb-6">
+          {/* Back */}
+          <button
+            onClick={() => router.push('/ordenes')}
+            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/30 hover:text-white/70 transition-colors mb-5"
+          >
+            <ArrowLeft size={12} />
+            <span>Volver a Órdenes</span>
           </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-black text-text-primary">Orden #{order.id}</h2>
-              <span className={`px-3 py-1 text-[10px] font-black uppercase rounded-full ${stateColor(order.delivery_state)}`}>
-                {HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state}
-              </span>
+
+          {/* Main hero row */}
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+            <div className="space-y-2.5">
+              {/* Status badge */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full text-white ${stateColor(order.delivery_state)}`}>
+                  {HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state}
+                </span>
+                <span className="px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full border bg-brand border-white/10 text-white">
+                  Hoko
+                </span>
+              </div>
+
+              {/* Order number */}
+              <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-none">
+                Orden #{order.id}
+              </h1>
+
+              {/* Meta */}
+              <p className="text-white/50 text-[11px] font-medium flex flex-wrap items-center gap-2">
+                <Calendar size={12} />
+                <span>Creada: {order.created_at ? new Date(order.created_at).toLocaleString('es-CO') : '—'}</span>
+              </p>
             </div>
-            <p className="text-xs text-text-muted mt-1 font-semibold">
-              Creada: {order.created_at ? new Date(order.created_at).toLocaleString('es-CO') : '—'}
-            </p>
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {order.external_id && (
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(`/pedidos/${encodeURIComponent(order.external_id!)}`)}
+                  className="h-9 text-[11px] font-black uppercase tracking-wide border-white/20 text-white hover:bg-white/10"
+                >
+                  <ExternalLink size={13} className="mr-1" />
+                  <span>Ver Shopify</span>
+                </Button>
+              )}
+              
+              {(order.delivery_state === '1' || order.delivery_state === '2') && (
+                <Button
+                  variant="outline"
+                  onClick={handleOpenEdit}
+                  className="h-9 text-[11px] font-black uppercase tracking-wide border-brand/40 text-brand-light hover:bg-brand/10"
+                >
+                  Editar
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={actionLoading === order.id}
+                className="h-9 text-[11px] font-black uppercase tracking-wide border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+              >
+                {actionLoading === order.id ? '...' : 'Cancelar'}
+              </Button>
+              
+              <Button
+                variant="primary"
+                onClick={handleGenerateGuide}
+                disabled={actionLoading === order.id}
+                className="h-9 text-[11px] font-black uppercase tracking-wide bg-brand border-0 text-white"
+              >
+                {actionLoading === order.id ? '...' : 'Generar Guía'}
+              </Button>
+            </div>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-          {order.external_id && (
-            <Button variant="outline" onClick={() => router.push(`/pedidos/${encodeURIComponent(order.external_id!)}`)}
-              className="h-10 px-4 text-xs flex items-center gap-1.5 font-bold">
-              <ExternalLink size={14} />
-              <span>Ver Shopify</span>
-            </Button>
-          )}
-          
-          {(order.delivery_state === '1' || order.delivery_state === '2') && (
-            <Button variant="outline" onClick={handleOpenEdit}
-              className="h-10 px-4 text-xs border-brand/20 text-brand hover:bg-brand-bg font-bold font-bold">
-              Editar orden
-            </Button>
-          )}
-
-          <Button variant="outline" onClick={handleCancel}
-            disabled={actionLoading === order.id}
-            className="h-10 px-4 text-xs border-danger/20 text-danger hover:bg-danger-bg font-bold">
-            {actionLoading === order.id ? '...' : 'Cancelar orden'}
-          </Button>
-          <Button variant="primary" onClick={handleGenerateGuide}
-            disabled={actionLoading === order.id}
-            className="h-10 px-4 text-xs font-bold">
-            {actionLoading === order.id ? '...' : 'Generar guía'}
-          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Panel: Cliente, Despacho y Productos */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          {/* Cliente & Destino Side-by-Side */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-md p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
-              
-              {/* Left Side: Datos del Cliente */}
-              <div className="space-y-5 pr-0 md:pr-8">
-                <h3 className="font-black text-sm uppercase tracking-wider text-text-primary flex items-center gap-2.5">
-                  <User size={16} className="text-brand" />
-                  <span>Destinatario</span>
-                </h3>
+      {/* ═══ BODY: 5-col grid ════════════════════════════════ */}
+      <div className="px-4 md:px-6 grid grid-cols-1 xl:grid-cols-5 gap-4 pb-10">
+
+        {/* ── LEFT COL (3/5): Destinatario + Logística + Productos ── */}
+        <div className="xl:col-span-3 flex flex-col gap-4">
+
+          {/* Info general card */}
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+              <User size={14} className="text-text-muted" />
+              <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Información de Destinatario y Despacho</span>
+            </div>
+            
+            <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 gap-6 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800/60">
+              {/* Destinatario */}
+              <div className="space-y-3.5 pr-0 md:pr-6 text-xs font-semibold text-text-secondary">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-widest">Destinatario</p>
                 {order.customer ? (
-                  <div className="text-sm space-y-3 font-semibold text-text-secondary">
+                  <>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Nombre</span>
-                      <span className="font-black text-text-primary text-base">{order.customer.name}</span>
+                      <span className="text-[10px] font-bold text-text-muted block">Nombre</span>
+                      <span className="text-text-primary font-black text-sm">{order.customer.name}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Identificación</span>
+                        <span className="text-[10px] font-bold text-text-muted block">Identificación</span>
                         <span className="text-text-primary font-black">{order.customer.identification || '—'}</span>
                       </div>
                       <div>
-                        <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Teléfono</span>
+                        <span className="text-[10px] font-bold text-text-muted block">Teléfono</span>
                         <span className="text-text-primary font-black">{order.customer.phone || '—'}</span>
                       </div>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Correo Electrónico</span>
-                      <span className="text-text-primary font-black">{order.customer.email || '—'}</span>
+                      <span className="text-[10px] font-bold text-text-muted block">Correo Electrónico</span>
+                      <span className="text-text-primary font-black truncate block">{order.customer.email || '—'}</span>
                     </div>
-                  </div>
+                  </>
                 ) : (
-                  <p className="text-sm text-text-muted italic">Sin datos de cliente</p>
+                  <p className="text-xs text-text-muted italic">Sin datos de cliente</p>
                 )}
               </div>
 
-              {/* Right Side: Datos de Despacho */}
-              <div className="space-y-5 pt-5 md:pt-0 pl-0 md:pl-8">
-                <h3 className="font-black text-sm uppercase tracking-wider text-text-primary flex items-center gap-2.5">
-                  <MapPin size={16} className="text-brand" />
-                  <span>Logística y Destino</span>
-                </h3>
-                <div className="text-sm space-y-3 font-semibold text-text-secondary">
+              {/* Logística */}
+              <div className="space-y-3.5 pt-5 md:pt-0 pl-0 md:pl-6 text-xs font-semibold text-text-secondary">
+                <p className="text-[9px] font-black text-text-muted uppercase tracking-widest">Logística y Destino</p>
+                <div>
+                  <span className="text-[10px] font-bold text-text-muted block">Dirección de Entrega</span>
+                  <span className="font-bold text-text-primary block">{order.customer?.address || '—'}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Dirección de Entrega</span>
-                    <span className="font-bold text-text-primary">{order.customer?.address || '—'}</span>
+                    <span className="text-[10px] font-bold text-text-muted block">Ciudad Destino</span>
+                    <span className="text-text-primary font-black uppercase">{(order as any).city || '—'}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Ciudad Destino</span>
-                      <span className="text-text-primary font-black uppercase">{(order as any).city || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Bodega de Despacho</span>
-                      <span className="text-text-primary font-black">ID #{order.cellar_id || '—'}</span>
-                    </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-text-muted block">Bodega despacho</span>
+                    <span className="text-text-primary font-black">ID #{order.cellar_id || '—'}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Método de Recaudo</span>
-                      <span className="text-text-primary font-black">
-                        {order.payment === '1' ? 'Contra entrega' : order.payment === '2' ? 'Ordinario' : `Cód: ${order.payment}`}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Valor Declarado</span>
-                      <span className="text-text-primary font-black text-base">${order.declared_value ? parseInt(order.declared_value).toLocaleString('es-CO') : '0'}</span>
-                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[10px] font-bold text-text-muted block">Método de Recaudo</span>
+                    <span className="text-text-primary font-black">
+                      {order.payment === '1' ? 'Contra entrega' : order.payment === '2' ? 'Ordinario' : `Cód: ${order.payment}`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-text-muted block">Valor Declarado</span>
+                    <span className="text-text-primary font-black text-sm">${order.declared_value ? parseInt(order.declared_value).toLocaleString('es-CO') : '0'}</span>
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
 
-          {/* Products Card */}
+          {/* Products card */}
           {(order as any).products && (order as any).products.length > 0 && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-md p-8 space-y-4">
-              <h3 className="font-black text-sm uppercase tracking-wider text-text-primary flex items-center gap-2.5">
-                <Package size={16} className="text-brand" />
-                <span>Productos Despachados</span>
-              </h3>
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+                <Package size={14} className="text-text-muted" />
+                <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Productos Despachados</span>
+              </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm font-semibold border-collapse">
+                <table className="w-full text-left text-xs font-semibold border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 text-xs text-text-muted uppercase">
-                      <th className="pb-3 font-black">Stock ID</th>
-                      <th className="pb-3 text-right font-black">Cantidad</th>
-                      <th className="pb-3 text-right font-black">Precio Unitario</th>
-                      <th className="pb-3 text-right font-black">Subtotal</th>
+                    <tr className="border-b border-slate-100 dark:border-slate-800/70 bg-card-alt/50 text-[10px] text-text-muted uppercase">
+                      <th className="px-5 py-2.5 font-black">Stock ID</th>
+                      <th className="px-5 py-2.5 text-right font-black">Cantidad</th>
+                      <th className="px-5 py-2.5 text-right font-black">Precio Unitario</th>
+                      <th className="px-5 py-2.5 text-right font-black">Subtotal</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                     {(order as any).products.map((p: any, idx: number) => {
                       const qty = parseInt(p.amount || '0');
                       const price = parseFloat(p.price_unity || '0');
                       return (
-                        <tr key={idx} className="text-text-secondary">
-                          <td className="py-3 font-black text-text-primary">#{p.stock_id}</td>
-                          <td className="py-3 text-right font-black">{qty}</td>
-                          <td className="py-3 text-right">${price.toLocaleString('es-CO')}</td>
-                          <td className="py-3 text-right font-black text-text-primary">${(price * qty).toLocaleString('es-CO')}</td>
+                        <tr key={idx} className="text-text-secondary hover:bg-slate-50 dark:hover:bg-slate-800/10">
+                          <td className="px-5 py-3 font-black text-text-primary">#{p.stock_id}</td>
+                          <td className="px-5 py-3 text-right font-black">{qty}</td>
+                          <td className="px-5 py-3 text-right">${price.toLocaleString('es-CO')}</td>
+                          <td className="px-5 py-3 text-right font-black text-text-primary">${(price * qty).toLocaleString('es-CO')}</td>
                         </tr>
                       );
                     })}
@@ -408,77 +440,80 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
 
         </div>
 
-        {/* Right Panel: Guía e Historial */}
-        <div className="space-y-8">
-          
-          {/* Guide Tracking Panel */}
-          <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-md p-8 space-y-5">
-            <h3 className="font-black text-sm uppercase tracking-wider text-text-primary flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800/50 pb-3">
-              <Truck size={16} className="text-brand" />
-              <span>Información de Guía</span>
-            </h3>
+        {/* ── RIGHT COL (2/5): Guía y Dimensiones ── */}
+        <div className="xl:col-span-2 flex flex-col gap-4">
+
+          {/* Tracking guide card */}
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+              <Truck size={14} className="text-text-muted" />
+              <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Información de Guía</span>
+            </div>
             
-            {order.guide ? (
-              <div className="text-sm space-y-4 font-semibold">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Número de Guía</span>
-                    <span className="font-black text-text-primary">{order.guide.number}</span>
+            <div className="px-5 py-4">
+              {order.guide ? (
+                <div className="text-xs space-y-4 font-semibold">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Número de Guía</span>
+                      <span className="font-black text-text-primary text-sm">{order.guide.number}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Estado Guía</span>
+                      <span className={`inline-block mt-1 px-2 py-0.5 text-[9px] font-black uppercase rounded-full ${guideStateColor(order.guide.state)}`}>
+                        {HOKO_GUIDE_STATES_CO[order.guide.state] || order.guide.state}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Estado Guía</span>
-                    <span className={`inline-block mt-1 px-2.5 py-0.5 text-[9px] font-black uppercase rounded-full ${guideStateColor(order.guide.state)}`}>
-                      {HOKO_GUIDE_STATES_CO[order.guide.state] || order.guide.state}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800/50">
-                  <div>
-                    <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Courier</span>
-                    <span className="font-black text-text-primary">{(order as any).courier?.name || `ID: ${order.courier_id}`}</span>
+                  <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100 dark:border-slate-800/50">
+                    <div>
+                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Courier</span>
+                      <span className="font-black text-text-primary">{(order as any).courier?.name || `ID: ${order.courier_id}`}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Costo Flete</span>
+                      <span className="font-black text-text-primary">
+                        {order.guide.total_freight_store ? `$${parseInt(order.guide.total_freight_store).toLocaleString('es-CO')}` : '—'}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Costo Flete</span>
-                    <span className="font-black text-text-primary">
-                      {order.guide.total_freight_store ? `$${parseInt(order.guide.total_freight_store).toLocaleString('es-CO')}` : '—'}
-                    </span>
-                  </div>
-                </div>
 
-                {(order as any).guide_pdf && (
-                  <div className="pt-3">
-                    <a
-                      href={(order as any).guide_pdf}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full text-center inline-flex items-center justify-center gap-2 px-4 py-3 bg-brand text-white text-xs font-black uppercase rounded-xl hover:bg-brand/90 transition-colors shadow-sm"
-                    >
-                      <FileText size={14} />
-                      <span>Imprimir Guía PDF</span>
-                    </a>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-sm text-text-muted italic font-medium">Esta orden aún no tiene guía generada.</p>
-              </div>
-            )}
+                  {(order as any).guide_pdf && (
+                    <div className="pt-3">
+                      <a
+                        href={(order as any).guide_pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full text-center inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-brand text-white text-xs font-black uppercase rounded-xl hover:bg-brand/90 transition-colors shadow-sm"
+                      >
+                        <FileText size={14} />
+                        <span>Imprimir Guía PDF</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-xs text-text-muted italic font-medium">Esta orden aún no tiene guía generada.</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Physical specifications */}
+          {/* Measures card */}
           {order.measures && (
-            <div className="bg-card rounded-3xl border border-slate-200/50 dark:border-slate-800 shadow-md p-8 space-y-4">
-              <h3 className="font-black text-sm uppercase tracking-wider text-text-primary flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800/50 pb-3">
-                <ClipboardList size={16} className="text-brand" />
-                <span>Empaque y Dimensiones</span>
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm font-semibold">
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70">
+                <ClipboardList size={14} className="text-text-muted" />
+                <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">Empaque y Dimensiones</span>
+              </div>
+              
+              <div className="px-5 py-4 grid grid-cols-2 gap-4 text-xs font-semibold">
                 <div>
-                  <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Dimensiones (An×Al×La)</span>
+                  <span className="text-text-muted block text-[10px] uppercase tracking-wider font-bold">Dimensiones (An x Al x La)</span>
                   <span className="font-black text-text-primary">
-                    {order.measures.width}×{order.measures.height}×{order.measures.length} cm
+                    {order.measures.width} x {order.measures.height} x {order.measures.length} cm
                   </span>
                 </div>
                 <div>

@@ -12,7 +12,13 @@ export default function PedidoDetailPage() {
   return (
     <OrderDetailView
       orderId={decodeURIComponent(params.id as string)}
-      onBack={() => router.push('/pedidos')}
+      onBack={() => {
+        if (typeof window !== 'undefined' && window.history.length > 1) {
+          router.back();
+        } else {
+          router.push('/pedidos');
+        }
+      }}
     />
   );
 }

@@ -1,3 +1,4 @@
+// Forzar recarga de tema y estilos globales
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import '../index.css';
@@ -13,13 +14,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Winners Hub',
-  description: 'Sistema de gestión de clientes y pedidos - Winners Hub',
+  title: 'Telocalizo Chats',
+  description: 'Sistema de gestión de clientes y pedidos - Telocalizo Chats',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Winners Hub',
+    title: 'Telocalizo Chats',
     startupImage: '/icono-fabrica-winners.png',
   },
   icons: {

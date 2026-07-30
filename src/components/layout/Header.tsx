@@ -62,16 +62,16 @@ export function Header({ activeTab }: { activeTab?: string }) {
     <header className="h-14 bg-header sticky top-0 z-30 border-b border-white/10 flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-4 flex-1">
         <h2 className="text-[10px] font-black text-white/60 uppercase tracking-[0.25em] flex items-center gap-2">
-          Winners Hub <span className="opacity-30">/</span> <span className="text-white italic tracking-tighter lowercase text-xs underline decoration-blue-300 decoration-2 underline-offset-4">{activeTab}</span>
+          Telocalizo Chats <span className="opacity-30">/</span> <span className="text-white italic tracking-tighter lowercase text-xs underline decoration-brand-light decoration-2 underline-offset-4">{activeTab}</span>
         </h2>
 
         <div className="relative w-full max-w-sm group hidden xl:block">
-          <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none group-focus-within:text-blue-300 text-white/40 transition-colors">
+          <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none group-focus-within:text-brand-light text-white/40 transition-colors">
             <Search size={14} />
           </div>
           <input
             type="text"
-            className="block w-full pl-8 pr-3 py-1.5 bg-white/10 border border-white/10 focus:border-blue-300/40 focus:outline-none focus:ring-2 focus:ring-blue-400/20 focus:bg-white/15 transition-all text-[11px] font-bold text-white placeholder:text-white/40"
+            className="block w-full pl-8 pr-3 py-1.5 bg-white/10 border border-white/10 focus:border-brand-light/40 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white/15 transition-all text-[11px] font-bold text-white placeholder:text-white/40"
             placeholder="Búsqueda rápida... (⌘K)"
           />
         </div>
@@ -96,7 +96,7 @@ export function Header({ activeTab }: { activeTab?: string }) {
         <div className="relative">
           <button className="p-2 rounded-lg hover:bg-white/10 text-white/50 transition-all relative group active:scale-95">
             <Bell size={16} />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full border-2 border-[#162044] shadow-[0_0_8px_var(--brand)]"></span>
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full border-2 border-[var(--header)] shadow-[0_0_8px_var(--brand)]"></span>
           </button>
         </div>
 

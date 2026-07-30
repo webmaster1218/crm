@@ -35,6 +35,37 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
     city: '',
   });
 
+  const getCanalBadge = (canal: string) => {
+    const c = String(canal).toLowerCase();
+    if (c === 'pagina_web' || c === 'shopify') {
+      return {
+        icon: (
+          <svg className="w-3.5 h-3.5 shrink-0 text-[#96bf48]" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.53 6.987l-2.07-.367L15.39.814a.6.6 0 0 0-.916-.279L12 2.277 9.525.535a.6.6 0 0 0-.916.279L6.54 6.62l-2.07.367a.6.6 0 0 0-.486.687l1.77 9.99c.07.397.414.696.818.696h10.856a.83.83 0 0 0 .818-.696l1.77-9.99a.6.6 0 0 0-.486-.687zM12 4.184l1.32 2.378H10.68L12 4.184zM7.228 16.5H5.87l-1.22-6.887 2.578.458L7.228 16.5zm5.972 0H10.8v-6.887h2.4v6.887zm4.93 0h-1.357l-.02-6.429 2.598-.458-1.221 6.887z"/>
+          </svg>
+        ),
+        label: 'Shopify',
+        badgeClass: 'bg-[#96bf48]/12 dark:bg-[#96bf48]/20 border border-[#96bf48]/30 dark:border-[#96bf48]/40 text-[#557623] dark:text-[#b6d97c]'
+      };
+    }
+    if (c.includes('whatsapp')) {
+      return {
+        icon: (
+          <svg className="w-3.5 h-3.5 shrink-0 text-[#25D366]" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.45L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.023-5.115-2.887-6.979C16.484 1.897 14.005.871 11.367.87c-5.445 0-9.87 4.421-9.875 9.865-.001 1.75.46 3.454 1.336 4.965l-.983 3.591 3.68-.965zm12.39-5.158c-.274-.137-1.62-.8-1.87-.892-.252-.09-.435-.137-.617.137-.182.274-.707.892-.867 1.074-.16.182-.32.206-.593.069-.275-.137-1.16-.427-2.21-1.365-.817-.73-1.37-1.632-1.53-1.905-.16-.274-.017-.422.12-.559.125-.124.274-.32.412-.48.137-.16.182-.274.274-.457.09-.182.046-.343-.023-.48-.069-.137-.617-1.485-.845-2.033-.222-.533-.446-.46-.617-.468-.16-.008-.343-.01-.525-.01-.182 0-.48.069-.73.343-.25.274-.958.936-.958 2.285 0 1.35.98 2.65 1.12 2.83.137.182 1.93 2.946 4.67 4.127.65.28 1.16.448 1.56.575.65.207 1.25.178 1.72.107.52-.078 1.62-.662 1.85-1.3.23-.637.23-1.186.16-1.3-.07-.114-.25-.182-.52-.319z"/>
+          </svg>
+        ),
+        label: 'WhatsApp',
+        badgeClass: 'bg-[#25D366]/12 dark:bg-[#25D366]/20 border border-[#25D366]/30 dark:border-[#25D366]/40 text-[#0f7a3d] dark:text-[#5fe99a]'
+      };
+    }
+    return {
+      icon: <ShoppingBag className="w-3.5 h-3.5 shrink-0 text-text-muted" />,
+      label: canal,
+      badgeClass: 'bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-text-secondary'
+    };
+  };
+
   const getOrderStatus = (order: any): OrderStatus => {
     if (order.cancelledAt || order.delivery_state === '5') return 'CANCELLED';
     if (order.displayFinancialStatus === 'VOIDED') return 'VOIDED';
@@ -45,7 +76,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
     switch (status) {
       case 'CANCELLED': return { text: 'Cancelado', class: 'text-danger' };
       case 'VOIDED': return { text: 'Anulado', class: 'text-text-muted' };
-      default: return { text: 'Activo', class: 'text-brand' };
+      default: return { text: 'Activo', class: 'text-indigo-600 dark:text-indigo-400 font-bold' };
     }
   };
 
@@ -234,6 +265,13 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
         return dbOrder;
       });
       
+      // Ordenar por fecha: los más nuevos primero (created_at descendente)
+      mergedOrders.sort((a: any, b: any) => {
+        const timeA = new Date(a.created_at || 0).getTime();
+        const timeB = new Date(b.created_at || 0).getTime();
+        return timeB - timeA;
+      });
+
       setOrders(mergedOrders);
       setConnected(true);
     } catch (error) {
@@ -703,6 +741,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800/50 bg-card-alt">
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">ID</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Pedido</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Origen</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Fecha</th>
@@ -717,7 +756,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                  {filteredOrders.map((order) => {
+                  {filteredOrders.map((order, index) => {
                     const payment = getFinancialStatusLabel(getFinancialStatus(order));
                     const fulfillment = getFulfillmentStatusLabel(getFulfillmentStatus(order));
                     const delivery = getDeliveryStatus(order);
@@ -743,15 +782,24 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                         onClick={() => onViewOrderDetail(order.db_id.toString())}
                         className={rowClasses}
                       >
+                        <td className="px-4 py-4 text-xs font-black text-text-muted">
+                          #{filteredOrders.length - index}
+                        </td>
                         <td className="px-4 py-4">
                           <span className={`text-xs font-black ${orderStatusStyle.class} ${isCancelledOrVoided ? 'line-through' : ''}`}>
                             {order.shopify_order_name || `#${order.db_id}`}
                           </span>
                         </td>
                         <td className="px-4 py-4">
-                          <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-md border ${order.canal === 'pagina_web' ? 'bg-brand/10 border-brand/20 text-brand' : 'bg-success/10 border-success/20 text-success'}`}>
-                            {order.canal === 'pagina_web' ? 'Shopify' : order.canal}
-                          </span>
+                          {(() => {
+                            const canal = getCanalBadge(order.canal);
+                            return (
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide rounded-md ${canal.badgeClass}`}>
+                                {canal.icon}
+                                <span>{canal.label}</span>
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-4 text-[11px] font-bold text-text-muted whitespace-nowrap">
                           {formatDateShort(order.created_at)}
@@ -787,7 +835,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-bold text-text-muted flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
                               <Package size={10} className="shrink-0" />
                               {deliveryMethod}
                             </span>
@@ -797,10 +845,10 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                                   e.stopPropagation();
                                   router.push(`/ordenes/${order.hoko_order_id}`);
                                 }}
-                                className="inline-flex items-center gap-1 text-brand text-[9px] font-black hover:underline"
+                                className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-[9px] font-black hover:underline"
                               >
                                 <Truck size={8} />
-                                <span>Hoko: #{order.hoko_order_id}</span>
+                                <span>#{order.hoko_order_id}</span>
                               </button>
                             ) : null}
                           </div>
@@ -828,7 +876,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
 
             {/* Mobile Cards View */}
             <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/50">
-              {filteredOrders.map((order) => {
+              {filteredOrders.map((order, index) => {
                 const payment = getFinancialStatusLabel(getFinancialStatus(order));
                 const fulfillment = getFulfillmentStatusLabel(getFulfillmentStatus(order));
                 const delivery = getDeliveryStatus(order);
@@ -851,7 +899,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                   >
                     <div className="flex justify-between items-center">
                       <span className={`text-xs font-black ${orderStatusStyle.class} ${isCancelledOrVoided ? 'line-through' : ''}`}>
-                        {order.shopify_order_name || `#${order.db_id}`}
+                        {order.shopify_order_name || `#${filteredOrders.length - index}`}
                       </span>
                       <span className="text-xs font-black text-text-primary">
                         ${getOrderTotalVal(order).toLocaleString('es-CO')}
@@ -861,9 +909,19 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                     <div className="flex justify-between text-[11px] text-text-secondary font-medium">
                       <div>
                         <p className="font-bold text-text-primary">{clientName}</p>
-                        <p className="text-[10px] text-text-muted mt-0.5">
-                          {formatDateShort(order.created_at)} | <span className="uppercase font-bold">{order.canal === 'pagina_web' ? 'Shopify' : order.canal}</span>
-                        </p>
+                        <div className="text-[10px] text-text-muted mt-0.5 flex items-center gap-1.5">
+                          <span>{formatDateShort(order.created_at)}</span>
+                          <span className="opacity-50">|</span>
+                          {(() => {
+                            const canal = getCanalBadge(order.canal);
+                            return (
+                              <span className={`inline-flex items-center gap-1 uppercase font-bold px-2 py-0.5 rounded-md ${canal.badgeClass}`}>
+                                {canal.icon}
+                                <span>{canal.label}</span>
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
                       <div className="text-right">
                         <p>{itemsCount} art.</p>
@@ -888,10 +946,10 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                             e.stopPropagation();
                             router.push(`/ordenes/${order.hoko_order_id}`);
                           }}
-                          className="inline-flex items-center gap-1 bg-brand/20 text-brand px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full hover:bg-brand/30"
+                          className="inline-flex items-center gap-1 bg-blue-500/10 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full hover:bg-blue-500/20"
                         >
                           <Truck size={10} />
-                          <span>Hoko: #{order.hoko_order_id}</span>
+                          <span>#{order.hoko_order_id}</span>
                         </button>
                       ) : null}
                     </div>

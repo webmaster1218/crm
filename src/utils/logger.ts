@@ -10,6 +10,11 @@ function formatMessage(level: string, message: string, context?: any) {
 }
 
 function writeLog(level: string, message: string, context?: any) {
+  if (process.env.NODE_ENV === 'production') {
+    const contextStr = context ? ' ' + JSON.stringify(context) : '';
+    console.log(`[${level}] ${message}${contextStr}`);
+    return;
+  }
   try {
     const logLine = formatMessage(level, message, context);
     fs.appendFileSync(LOG_FILE_PATH, logLine, 'utf8');
