@@ -81,6 +81,7 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
 
   // Custom price input
   const [customPrice, setCustomPrice] = useState<string>('199000');
+  const [accesoApp, setAccesoApp] = useState('PENDIENTE APP');
 
   // Helper for SweetAlert2 notifications
   const showNotification = (title: string, text: string, icon: 'success' | 'error' | 'warning' | 'info') => {
@@ -337,7 +338,8 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
         courier_name: selectedCourier.courier_name,
         payment_type: paymentType,
         total_paid: totalItemsPrice,
-        declared_value: declaredValue
+        declared_value: declaredValue,
+        acceso_app: accesoApp
       };
 
       const res = await fetch('/api/pedidos', {
@@ -691,6 +693,19 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
                       className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1"
                     />
                   </div>
+                </div>
+
+                {/* Acceso App */}
+                <div>
+                  <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Acceso a Plataforma / App *</label>
+                  <select
+                    value={accesoApp}
+                    onChange={e => setAccesoApp(e.target.value)}
+                    className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 appearance-none cursor-pointer"
+                  >
+                    <option value="PENDIENTE APP">🟡 PENDIENTE APP</option>
+                    <option value="OK APP">🟢 OK APP</option>
+                  </select>
                 </div>
 
                 {/* Hoko Freight Quotation */}

@@ -9,6 +9,8 @@ import {
 import { HokoOrder, HokoCity, HokoQuotation, HOKO_ORDER_STATES, HOKO_GUIDE_STATES_CO } from '../../../types';
 import { useRouter } from 'next/navigation';
 import { Button } from '../../../components/shared/Button';
+import { ExportDropdown } from '../../../components/shared/ExportDropdown';
+import { exportToCSV, exportToXML } from '../../../utils/exportUtils';
 import Swal from 'sweetalert2';
 
 export default function HokoPedidosPage() {
@@ -510,49 +512,50 @@ export default function HokoPedidosPage() {
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Sincronizar
           </Button>
-          <Button onClick={() => {
-            const headers = [
-              'ID', 'Cliente', 'Email', 'Teléfono', 'Contenido', 
-              'Estado', 'Guía', 'Transportadora', 'Pedido Relacionado'
-            ];
-            const rows = filteredOrders.map(order => ({
-              'ID': `#${order.id}`,
-              'Cliente': order.customer?.name || '—',
-              'Email': order.customer?.email || '—',
-              'Teléfono': order.customer?.phone || '—',
-              'Contenido': `${(order as any).quantity || 1} / ${order.contain || 'Nanotrack'}`,
-              'Estado': HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state,
-              'Guía': order.guide?.number || '—',
-              'Transportadora': (order as any).courier_name || order.courier_id || '—',
-              'Pedido Relacionado': (order as any).shopify_order_name || '—'
-            }));
-
-            const csvRows = [headers.join(';')];
-            rows.forEach(r => {
-              const vals = headers.map(h => {
-                const val = r[h as keyof typeof r];
-                const valStr = val === undefined || val === null ? '' : String(val);
-                return `"${valStr.replace(/"/g, '""')}"`;
-              });
-              csvRows.push(vals.join(';'));
-            });
-
-            const csvContent = "\uFEFF" + csvRows.join("\n");
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `ordenes_hoko_${new Date().toISOString().slice(0,10)}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }}
+          <ExportDropdown
+            label="Exportar"
             disabled={loading || filteredOrders.length === 0}
-            className="bg-[#1D743F] text-white hover:bg-[#155a30] border-0 flex items-center gap-2 h-9 text-[11px] font-bold shadow-sm shadow-emerald-800/10">
-            <FileSpreadsheet size={14} />
-            Exportar
-          </Button>
+            onExportCSV={() => {
+              const headers = [
+                'ID', 'Cliente', 'Email', 'Teléfono', 'Ciudad', 'Contenido',
+                'Estado Orden', 'Estado Guía', 'Guía', 'Transportadora', 'Pedido Relacionado'
+              ];
+              const rows = filteredOrders.map(order => ({
+                'ID': `#${order.id}`,
+                'Cliente': order.customer?.name || '—',
+                'Email': order.customer?.email || '—',
+                'Teléfono': order.customer?.phone || '—',
+                'Ciudad': order.customer?.city || '—',
+                'Contenido': `${(order as any).quantity || 1}x ${order.contain || 'Nanotrack'}`,
+                'Estado Orden': HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state || '—',
+                'Estado Guía': order.guide ? (HOKO_GUIDE_STATES_CO[order.guide.state] || order.guide.state) : '—',
+                'Guía': order.guide?.number || '—',
+                'Transportadora': (order as any).courier_name || order.courier_id || '—',
+                'Pedido Relacionado': (order as any).shopify_order_name || '—',
+              }));
+              exportToCSV(headers, rows, `ordenes_hoko_${new Date().toISOString().slice(0,10)}`);
+            }}
+            onExportXML={() => {
+              const headers = [
+                'ID', 'Cliente', 'Email', 'Teléfono', 'Ciudad', 'Contenido',
+                'Estado Orden', 'Estado Guía', 'Guía', 'Transportadora', 'Pedido Relacionado'
+              ];
+              const rows = filteredOrders.map(order => ({
+                'ID': `#${order.id}`,
+                'Cliente': order.customer?.name || '—',
+                'Email': order.customer?.email || '—',
+                'Teléfono': order.customer?.phone || '—',
+                'Ciudad': order.customer?.city || '—',
+                'Contenido': `${(order as any).quantity || 1}x ${order.contain || 'Nanotrack'}`,
+                'Estado Orden': HOKO_ORDER_STATES[order.delivery_state] || order.delivery_state || '—',
+                'Estado Guía': order.guide ? (HOKO_GUIDE_STATES_CO[order.guide.state] || order.guide.state) : '—',
+                'Guía': order.guide?.number || '—',
+                'Transportadora': (order as any).courier_name || order.courier_id || '—',
+                'Pedido Relacionado': (order as any).shopify_order_name || '—',
+              }));
+              exportToXML(headers, rows, `ordenes_hoko_${new Date().toISOString().slice(0,10)}`, 'OrdenesHoko', 'Orden');
+            }}
+          />
           <Button variant="primary" onClick={openCreate}
             className="flex items-center gap-2 h-9 text-[11px]">
             <Plus size={14} />

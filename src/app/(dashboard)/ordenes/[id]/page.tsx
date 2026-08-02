@@ -69,6 +69,8 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
     return result.isConfirmed;
   };
   const [cities, setCities] = useState<HokoCity[]>([]);
+  const [dbOrder, setDbOrder] = useState<any>(null);
+  const [updatingAppStatus, setUpdatingAppStatus] = useState(false);
 
   // Edit form state
   const [showEdit, setShowEdit] = useState(false);
@@ -116,10 +118,63 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
       const data = await hokoFetch(`/member/order/${orderId}`);
       const orderData = data.data || data;
       setOrder(orderData);
+
+      // Fetch local database order to get acceso_app
+      const resLocal = await fetch('/api/pedidos', { cache: 'no-store' });
+      const localList = await resLocal.json();
+      if (Array.isArray(localList)) {
+        const found = localList.find((o: any) => String(o.hoko_order_id) === String(orderId) || String(o.id) === String(orderId));
+        if (found) {
+          setDbOrder(found);
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleAppStatus = async () => {
+    if (!dbOrder) return;
+    const currentStatus = dbOrder.acceso_app || 'PENDIENTE APP';
+    const nextStatus = currentStatus === 'OK APP' ? 'PENDIENTE APP' : 'OK APP';
+    setUpdatingAppStatus(true);
+    try {
+      const res = await fetch('/api/pedidos/update-app-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: dbOrder.db_id, status: nextStatus })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al actualizar acceso a la app.');
+      }
+      setDbOrder(prev => prev ? { ...prev, acceso_app: nextStatus } : null);
+      
+      const isDark = document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Acceso Actualizado',
+        text: `El estado del acceso se cambió a ${nextStatus}`,
+        icon: 'success',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#10b981',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire({
+        title: 'Error',
+        text: err.message || 'No se pudo cambiar el estado de acceso.',
+        icon: 'error',
+        confirmButtonColor: '#ef4444'
+      });
+    } finally {
+      setUpdatingAppStatus(false);
     }
   };
 
@@ -446,6 +501,30 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
                     <span className="text-text-primary font-black text-sm">${order.declared_value ? parseInt(order.declared_value).toLocaleString('es-CO') : '0'}</span>
                   </div>
                 </div>
+
+                {dbOrder && (
+                  <div className="border-t border-slate-100 dark:border-slate-800/60 pt-3.5 mt-1 flex items-center justify-between gap-4">
+                    <div>
+                      <span className="text-[10px] font-bold text-text-muted block">Acceso Plataforma App</span>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-full border mt-1.5 select-none ${
+                        dbOrder.acceso_app === 'OK APP'
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+                      }`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                        {dbOrder.acceso_app || 'PENDIENTE APP'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={updatingAppStatus}
+                      onClick={toggleAppStatus}
+                      className="text-[9px] font-black uppercase tracking-wider px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-text-primary rounded-xl border border-slate-200 dark:border-slate-800 transition-all active:scale-95 whitespace-nowrap"
+                    >
+                      {updatingAppStatus ? 'Actualizando...' : 'Cambiar Acceso'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

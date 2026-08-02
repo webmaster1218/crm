@@ -236,6 +236,7 @@ export interface HokoCustomer {
   phone: string;
   address: string;
   city_id: string;
+  city?: string;
 }
 
 export interface HokoMeasures {

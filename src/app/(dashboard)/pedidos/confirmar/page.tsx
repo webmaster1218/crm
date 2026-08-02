@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../../../../components/shared/Button';
 import { Badge } from '../../../../components/shared/Badge';
+import { ExportDropdown } from '../../../../components/shared/ExportDropdown';
+import { exportToCSV, exportToXML } from '../../../../utils/exportUtils';
 
 interface PedidoPorConfirmar {
   id: number;
@@ -137,11 +139,51 @@ export default function PedidosConfirmarPage() {
             Gestiona y confirma pedidos manuales o pendientes de validación antes de su envío.
           </p>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
           <Button variant="outline" onClick={fetchPedidos} disabled={loading} className="flex items-center gap-2 h-9 text-[11px]">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Actualizar
           </Button>
+          <ExportDropdown
+            label="Exportar"
+            disabled={loading || pedidos.length === 0}
+            onExportCSV={() => {
+              const headers = ['ID', 'Pedido Shopify', 'Cliente', 'Email', 'Teléfono', 'Ciudad', 'Dirección', 'Cantidad', 'Método Pago', 'Estado', 'Creado', 'Confirmado'];
+              const rows = filteredPedidos.map(p => ({
+                'ID': p.id,
+                'Pedido Shopify': p.external_order_id || p.shopify_order_id || '—',
+                'Cliente': p.name || '—',
+                'Email': p.email || '—',
+                'Teléfono': p.phone || '—',
+                'Ciudad': p.city || '—',
+                'Dirección': p.address || '—',
+                'Cantidad': p.quantity,
+                'Método Pago': p.metodo_pago || '—',
+                'Estado': p.status === 'COMFIRMADO' ? 'Confirmado' : 'Esperando Confirmación',
+                'Creado': formatDate(p.created_at),
+                'Confirmado': p.confirmed_at ? formatDate(p.confirmed_at) : '—',
+              }));
+              exportToCSV(headers, rows, `pedidos_confirmar_${new Date().toISOString().slice(0,10)}`);
+            }}
+            onExportXML={() => {
+              const headers = ['ID', 'Pedido Shopify', 'Cliente', 'Email', 'Teléfono', 'Ciudad', 'Dirección', 'Cantidad', 'Método Pago', 'Estado', 'Creado', 'Confirmado'];
+              const rows = filteredPedidos.map(p => ({
+                'ID': p.id,
+                'Pedido Shopify': p.external_order_id || p.shopify_order_id || '—',
+                'Cliente': p.name || '—',
+                'Email': p.email || '—',
+                'Teléfono': p.phone || '—',
+                'Ciudad': p.city || '—',
+                'Dirección': p.address || '—',
+                'Cantidad': p.quantity,
+                'Método Pago': p.metodo_pago || '—',
+                'Estado': p.status === 'COMFIRMADO' ? 'Confirmado' : 'Esperando Confirmación',
+                'Creado': formatDate(p.created_at),
+                'Confirmado': p.confirmed_at ? formatDate(p.confirmed_at) : '—',
+              }));
+              exportToXML(headers, rows, `pedidos_confirmar_${new Date().toISOString().slice(0,10)}`, 'PedidosPorConfirmar', 'Pedido');
+            }}
+          />
         </div>
       </div>
 

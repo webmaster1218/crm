@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
         created_at: p.created_at,
         updated_at: p.updated_at,
         canal: canalStr,
+        acceso_app: p.acceso_app || 'PENDIENTE APP',
         customer: {
           name: p.clientes?.nombre || '—',
           email: p.clientes?.email || '—',
@@ -189,7 +190,8 @@ export async function POST(request: NextRequest) {
       courier_name,
       payment_type,
       total_paid,
-      declared_value = '100000'
+      declared_value = '100000',
+      acceso_app = 'PENDIENTE APP'
     } = body;
 
     // Validation
@@ -325,6 +327,7 @@ export async function POST(request: NextRequest) {
         courier_name: courier_name,
         payment_type: payment_type,
         total_paid: Number(total_paid),
+        acceso_app: acceso_app,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })

@@ -19,7 +19,8 @@ import {
   ClipboardList,
   Box,
   Truck,
-  Package
+  Package,
+  FileSpreadsheet
 } from 'lucide-react';
 import { cn } from '../../types';
 
@@ -43,6 +44,7 @@ const routeMap: Record<string, string> = {
   reports: '/reports',
   settings: '/settings',
   pedidos: '/pedidos',
+  conciliaciones: '/conciliaciones',
 };
 
 import { supabase } from '../../lib/supabaseClient';
@@ -131,6 +133,7 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
       items: [
         { id: 'contacts', label: 'Clientes', icon: Users },
         { id: 'pipeline', label: 'Pipeline', icon: Trello },
+        { id: 'conciliaciones', label: 'Liquidación', icon: FileSpreadsheet, path: '/conciliaciones' },
       ]
     },
     {

@@ -24,6 +24,7 @@ import {
   AlertCircle,
   RotateCcw,
   ChevronRight,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -63,6 +64,7 @@ const allGroups = [
     items: [
       { id: 'contacts', label: 'Clientes', icon: Users, path: '/contacts' },
       { id: 'pipeline', label: 'Pipeline', icon: Trello, path: '/pipeline' },
+      { id: 'conciliaciones', label: 'Liquidación', icon: FileSpreadsheet, path: '/conciliaciones' },
     ],
   },
   {

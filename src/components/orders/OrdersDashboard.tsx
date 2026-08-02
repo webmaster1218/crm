@@ -4,8 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { Search, ShoppingBag, RefreshCw, ChevronRight, Filter, X, Package, Truck, FileSpreadsheet, CreditCard, DollarSign, TrendingUp, ShoppingCart } from 'lucide-react';
 import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
+import { ExportDropdown } from '../shared/ExportDropdown';
+import { exportToCSV, exportToXML } from '../../utils/exportUtils';
 import { useRouter } from 'next/navigation';
 import { CreateManualOrderModal } from './CreateManualOrderModal';
+import Swal from 'sweetalert2';
 
 interface OrdersDashboardProps {
   onViewOrderDetail: (id: string) => void;
@@ -21,6 +24,128 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [updatingAppStatus, setUpdatingAppStatus] = useState<any | null>(null);
+
+  const toggleAppStatus = async (e: React.MouseEvent, dbId: any, currentStatus: string) => {
+    e.stopPropagation(); // Evita abrir la vista de detalle
+    const nextStatus = currentStatus === 'OK APP' ? 'PENDIENTE APP' : 'OK APP';
+    setUpdatingAppStatus(dbId);
+    try {
+      const res = await fetch('/api/pedidos/update-app-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: dbId, status: nextStatus })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al actualizar el estado de la app.');
+      }
+      // Actualizar localmente el pedido
+      setOrders(prev => prev.map(o => o.db_id === dbId ? { ...o, acceso_app: nextStatus } : o));
+    } catch (err: any) {
+      console.error(err);
+      const isDark = document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Error',
+        text: err.message || 'Error al cambiar acceso de app.',
+        icon: 'error',
+        confirmButtonText: 'Aceptar',
+        confirmButtonColor: '#ef4444',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+    } finally {
+      setUpdatingAppStatus(null);
+    }
+  };
+
+  const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState<any | null>(null);
+
+  const togglePaymentStatus = async (e: React.MouseEvent, order: any, currentStatus: string) => {
+    e.stopPropagation(); // Evita abrir la vista de detalle
+    const nextStatus = currentStatus === 'PAID' ? 'PENDING' : 'PAID';
+    
+    if (order.shopify_order_id && currentStatus === 'PAID') {
+      const isDark = document.documentElement.classList.contains('dark');
+      const confirm = await Swal.fire({
+        title: '¿Revertir a Pendiente?',
+        text: 'Los pedidos de Shopify marcados como pagados no se pueden desmarcar en Shopify. ¿Deseas cambiar el estado a pendiente solo en el CRM local?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, cambiar localmente',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#374151',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+      if (!confirm.isConfirmed) return;
+    }
+
+    setUpdatingPaymentStatus(order.db_id);
+    try {
+      const res = await fetch('/api/pedidos/update-payment-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: order.db_id, 
+          shopify_order_id: order.shopify_order_id,
+          status: nextStatus 
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al actualizar el pago.');
+      }
+      
+      setOrders(prev => prev.map(o => {
+        if (o.db_id === order.db_id) {
+          return { 
+            ...o, 
+            payment_type: nextStatus === 'PAID' ? 'pagado en la tienda' : 'pago contra entrega',
+            displayFinancialStatus: nextStatus 
+          };
+        }
+        return o;
+      }));
+
+      const isDark = document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Pago Actualizado',
+        text: `El estado del pago se cambió a ${nextStatus === 'PAID' ? 'Pagado' : 'Pago pendiente'}`,
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+      const isDark = document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Error',
+        text: err.message || 'Error al cambiar estado de pago.',
+        icon: 'error',
+        confirmButtonColor: '#ef4444',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+    } finally {
+      setUpdatingPaymentStatus(null);
+    }
+  };
 
   const [filters, setFilters] = useState({
     status: 'ACTIVE' as OrderStatus | 'ALL',
@@ -425,66 +550,56 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>Sincronizar</span>
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
+          <ExportDropdown
+            label="Exportar"
+            disabled={loading || filteredOrders.length === 0}
+            onExportCSV={() => {
               const headers = [
-                'Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono', 
+                'Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono',
                 'Dirección Envío', 'Ciudad Envío', 'Origen/Canal',
                 'Total', 'Estado Pago', 'Estado Prep', 'Estado Entrega', 'Hoko ID'
               ];
-              const rows = filteredOrders.map(order => {
-                const payment = getFinancialStatusLabel(getFinancialStatus(order));
-                const fulfillment = getFulfillmentStatusLabel(getFulfillmentStatus(order));
-                const delivery = getDeliveryStatus(order);
-                const clientName = order.customer?.name || 'Sin cliente';
-                const shippingAddressStr = order.customer?.address || '—';
-                const currency = 'COP';
-
-                return {
-                  'Pedido': order.shopify_order_name || `#${order.db_id}`,
-                  'Fecha': new Date(order.created_at).toLocaleString('es-CO'),
-                  'Cliente': clientName,
-                  'Email': order.customer?.email || '—',
-                  'Teléfono': order.customer?.phone || '—',
-                  'Dirección Envío': shippingAddressStr,
-                  'Ciudad Envío': order.customer?.city || '—',
-                  'Origen/Canal': order.canal === 'pagina_web' ? 'Shopify' : order.canal,
-                  'Total': `${getOrderTotalVal(order)} ${currency}`,
-                  'Estado Pago': payment.text,
-                  'Estado Prep': fulfillment.text,
-                  'Estado Entrega': delivery.text,
-                  'Hoko ID': order.hoko_order_id || '—'
-                };
-              });
-
-              const csvRows = [headers.join(';')];
-              rows.forEach(r => {
-                const vals = headers.map(h => {
-                  const val = r[h as keyof typeof r];
-                  const valStr = val === undefined || val === null ? '' : String(val);
-                  return `"${valStr.replace(/"/g, '""')}"`;
-                });
-                csvRows.push(vals.join(';'));
-              });
-
-              const csvContent = "\uFEFF" + csvRows.join("\n");
-              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.setAttribute("href", url);
-              link.setAttribute("download", `pedidos_hub_${new Date().toISOString().slice(0,10)}.csv`);
-              link.style.visibility = 'hidden';
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
+              const rows = filteredOrders.map(order => ({
+                'Pedido': order.shopify_order_name || `#${order.db_id}`,
+                'Fecha': new Date(order.created_at).toLocaleString('es-CO'),
+                'Cliente': order.customer?.name || 'Sin cliente',
+                'Email': order.customer?.email || '—',
+                'Teléfono': order.customer?.phone || '—',
+                'Dirección Envío': order.customer?.address || '—',
+                'Ciudad Envío': order.customer?.city || '—',
+                'Origen/Canal': order.canal === 'pagina_web' ? 'Shopify' : order.canal,
+                'Total': `${getOrderTotalVal(order)} COP`,
+                'Estado Pago': getFinancialStatusLabel(getFinancialStatus(order)).text,
+                'Estado Prep': getFulfillmentStatusLabel(getFulfillmentStatus(order)).text,
+                'Estado Entrega': getDeliveryStatus(order).text,
+                'Hoko ID': order.hoko_order_id || '—',
+              }));
+              exportToCSV(headers, rows, `pedidos_hub_${new Date().toISOString().slice(0,10)}`);
             }}
-            disabled={loading || filteredOrders.length === 0}
-            className="bg-[#1D743F] text-white hover:bg-[#155a30] border-0 flex items-center gap-2 h-9 text-[11px] font-bold shadow-sm shadow-emerald-800/10 px-3 rounded-lg"
-          >
-            <FileSpreadsheet size={14} />
-            <span>Exportar</span>
-          </Button>
+            onExportXML={() => {
+              const headers = [
+                'Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono',
+                'Dirección Envío', 'Ciudad Envío', 'Origen/Canal',
+                'Total', 'Estado Pago', 'Estado Prep', 'Estado Entrega', 'Hoko ID'
+              ];
+              const rows = filteredOrders.map(order => ({
+                'Pedido': order.shopify_order_name || `#${order.db_id}`,
+                'Fecha': new Date(order.created_at).toLocaleString('es-CO'),
+                'Cliente': order.customer?.name || 'Sin cliente',
+                'Email': order.customer?.email || '—',
+                'Teléfono': order.customer?.phone || '—',
+                'Dirección Envío': order.customer?.address || '—',
+                'Ciudad Envío': order.customer?.city || '—',
+                'Origen/Canal': order.canal === 'pagina_web' ? 'Shopify' : order.canal,
+                'Total': `${getOrderTotalVal(order)} COP`,
+                'Estado Pago': getFinancialStatusLabel(getFinancialStatus(order)).text,
+                'Estado Prep': getFulfillmentStatusLabel(getFulfillmentStatus(order)).text,
+                'Estado Entrega': getDeliveryStatus(order).text,
+                'Hoko ID': order.hoko_order_id || '—',
+              }));
+              exportToXML(headers, rows, `pedidos_hub_${new Date().toISOString().slice(0,10)}`, 'PedidosHub', 'Pedido');
+            }}
+          />
         </div>
       </div>
 
@@ -768,6 +883,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Total</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Pago</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Prep.</th>
+                    <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Acceso App</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Entrega</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider">Envío</th>
                     <th className="px-4 py-3 text-[9px] font-black text-text-muted uppercase tracking-wider text-center">Arts.</th>
@@ -837,14 +953,42 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                           </span>
                         </td>
                         <td className="px-4 py-4 text-center">
-                          <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${payment.class}`}>
-                            {payment.text}
-                          </span>
+                          <button
+                            type="button"
+                            disabled={updatingPaymentStatus === order.db_id}
+                            onClick={(e) => togglePaymentStatus(e, order, getFinancialStatus(order))}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-full border transition-all active:scale-95 ${payment.class}`}
+                          >
+                            {updatingPaymentStatus === order.db_id ? (
+                              <RefreshCw size={10} className="animate-spin" />
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                            )}
+                            <span>{payment.text}</span>
+                          </button>
                         </td>
                         <td className="px-4 py-4 text-center">
                           <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${fulfillment.class}`}>
                             {fulfillment.text}
                           </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            disabled={updatingAppStatus === order.db_id}
+                            onClick={(e) => toggleAppStatus(e, order.db_id, order.acceso_app)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-full border transition-all active:scale-95 ${
+                              order.acceso_app === 'OK APP'
+                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+                            }`}
+                          >
+                            {updatingAppStatus === order.db_id ? (
+                              <RefreshCw size={10} className="animate-spin" />
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                            )}
+                            <span>{order.acceso_app || 'PENDIENTE APP'}</span>
+                          </button>
                         </td>
                         <td className="px-4 py-4 text-center">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full ${delivery.class}`}>
