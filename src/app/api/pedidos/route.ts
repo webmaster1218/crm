@@ -175,3 +175,174 @@ export async function GET(request: NextRequest) {
     logger.info('=== FIN GET /api/pedidos (SERVER SIDE) ===');
   }
 }
+
+export async function POST(request: NextRequest) {
+  logger.info('=== INICIO POST /api/pedidos (CREAR MANUAL) ===');
+  try {
+    const body = await request.json();
+    const {
+      customer,
+      stock_id,
+      quantity,
+      price_by_unit,
+      courier_id,
+      courier_name,
+      payment_type,
+      total_paid,
+      declared_value = '100000'
+    } = body;
+
+    // Validation
+    if (!customer?.name || !customer?.phone || !customer?.address || !customer?.city_id || !stock_id || !quantity || !courier_id) {
+      logger.warn('POST /api/pedidos llamado con campos incompletos');
+      return NextResponse.json({ error: 'Faltan campos obligatorios para registrar el pedido' }, { status: 400 });
+    }
+
+    // 1. Create Hoko order first
+    logger.info('Registrando orden en Hoko...');
+    const customerPayload = {
+      name: customer.name,
+      email: customer.email || 'cliente@correo.com',
+      identification: customer.identification || '12345678',
+      phone: customer.phone,
+      address: customer.address,
+      city_id: String(customer.city_id)
+    };
+    logger.info('Customer payload enviado a Hoko:', customerPayload);
+    const hokoFormData = new FormData();
+    hokoFormData.append('customer', JSON.stringify(customerPayload));
+    hokoFormData.append('stocks', JSON.stringify({
+      [String(stock_id)]: {
+        amount: Number(quantity),
+        price: Number(price_by_unit)
+      }
+    }));
+    // Hoko payment: 0 = Contraentrega/Recaudo, 1 = Pago anticipado/Crédito
+    const hokoPaymentVal = payment_type === 'pago contra entrega' ? '0' : '1';
+    hokoFormData.append('payment', hokoPaymentVal);
+    hokoFormData.append('courier_id', String(courier_id));
+    hokoFormData.append('contain', 'Accesorio localizador');
+    hokoFormData.append('measures', JSON.stringify({
+      height: "10",
+      width: "10",
+      length: "10",
+      weight: "1"
+    }));
+    hokoFormData.append('declared_value', String(declared_value));
+
+    const hokoUrl = `${HOKO_BASE}/member/order/create`;
+    logger.info(`Llamando endpoint Hoko: ${hokoUrl}`);
+    const hokoRes = await fetch(hokoUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${HOKO_TOKEN}`,
+        Accept: 'application/json'
+      },
+      body: hokoFormData
+    });
+
+    if (!hokoRes.ok) {
+      const errText = await hokoRes.text();
+      logger.error('Error de red al llamar a Hoko:', errText);
+      return NextResponse.json({ error: `Hoko Error: ${errText}` }, { status: hokoRes.status });
+    }
+
+    const hokoData = await hokoRes.json();
+    logger.info('Respuesta de creación en Hoko:', hokoData);
+
+    const hokoOrderResult = hokoData.data || hokoData;
+    const hokoOrderId = hokoOrderResult.id || hokoData.order_id;
+    const hokoStoreId = hokoOrderResult.cellar_id || hokoData.store_id || 23789;
+
+    if (hokoData.error || !hokoOrderId) {
+      logger.error('Error devuelto por Hoko:', hokoData.error || hokoData);
+      return NextResponse.json({ error: hokoData.error || 'No se pudo crear la orden en Hoko' }, { status: 400 });
+    }
+
+    // 2. Database client lookup / insertion
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    logger.info(`Buscando cliente con teléfono: ${customer.phone}`);
+    
+    let { data: existingClient, error: clientFindError } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('telefono', customer.phone)
+      .maybeSingle();
+
+    if (clientFindError) {
+      logger.error('Error consultando cliente en Supabase:', clientFindError);
+    }
+
+    let cliente_id = '';
+    if (existingClient?.cliente_id) {
+      cliente_id = existingClient.cliente_id;
+      logger.info(`Cliente existente encontrado: ${cliente_id}`);
+      
+      // Update client address and city if they changed
+      await supabase
+        .from('clientes')
+        .update({
+          direccion: customer.address,
+          ciudad: customer.city || existingClient.ciudad,
+          updated_at: new Date().toISOString()
+        })
+        .eq('cliente_id', cliente_id);
+    } else {
+      cliente_id = `cliente_directo_${Date.now()}`;
+      logger.info(`Creando nuevo cliente: ${cliente_id}`);
+      const { error: clientInsertError } = await supabase
+        .from('clientes')
+        .insert({
+          cliente_id,
+          canal: 'chat',
+          nombre: customer.name,
+          email: customer.email || null,
+          telefono: customer.phone,
+          identificacion: customer.identification || null,
+          direccion: customer.address,
+          ciudad: customer.city || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (clientInsertError) {
+        logger.error('Error insertando cliente en Supabase:', clientInsertError);
+        return NextResponse.json({ error: clientInsertError.message }, { status: 500 });
+      }
+    }
+
+    // 3. Insert order in local database
+    logger.info('Registrando pedido en Supabase...');
+    const { data: newOrder, error: orderInsertError } = await supabase
+      .from('pedidos')
+      .insert({
+        cliente_id,
+        hoko_order_id: hokoOrderId,
+        hoko_store_id: hokoStoreId,
+        quantity: Number(quantity),
+        stock_id: Number(stock_id),
+        courier_id: Number(courier_id),
+        courier_name: courier_name,
+        payment_type: payment_type,
+        total_paid: Number(total_paid),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (orderInsertError) {
+      logger.error('Error insertando pedido en Supabase:', orderInsertError);
+      return NextResponse.json({ error: orderInsertError.message }, { status: 500 });
+    }
+
+    logger.info(`Pedido creado exitosamente con ID local ${newOrder.id} y Hoko ID ${hokoOrderId}`);
+    return NextResponse.json({ success: true, order: newOrder });
+
+  } catch (error: any) {
+    logger.error('Excepción en POST /api/pedidos:', { message: error.message, stack: error.stack });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    logger.info('=== FIN POST /api/pedidos ===');
+  }
+}

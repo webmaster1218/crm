@@ -275,12 +275,13 @@ export default function PedidosConfirmarPage() {
                   >
                     <td className="px-3 py-2.5">
                       {pedido.shopify_order_id ? (
-                        <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
-                          <ExternalLink size={10} />
-                          <span>#{pedido.external_order_id || pedido.shopify_order_id}</span>
+                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:underline">
+                          #{pedido.external_order_id || pedido.shopify_order_id}
                         </span>
                       ) : (
-                        <span className="text-xs font-bold text-text-primary">#{pedido.external_order_id || pedido.id}</span>
+                        <span className="text-xs font-black text-text-primary">
+                          #{pedido.external_order_id || pedido.id}
+                        </span>
                       )}
                     </td>
                     <td className="px-3 py-2.5">

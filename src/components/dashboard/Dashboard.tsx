@@ -159,6 +159,22 @@ export function Dashboard() {
   const totalOrdersReal = realOrders.length;
   const totalClientsReal = realClients.length;
 
+  const averageTicketReal = totalOrdersReal > 0 ? totalSalesReal / totalOrdersReal : 0;
+
+  // Logistics & Envío
+  const unfulfilledOrdersCount = realOrders.filter(o => {
+    if (o.displayFulfillmentStatus) return o.displayFulfillmentStatus === 'UNFULFILLED';
+    return o.delivery_state !== '4';
+  }).length;
+
+  const deliveredCount = realOrders.filter(o => {
+    if (o.guide) {
+      const state = String(o.guide.state);
+      return state === '3' || state === '17' || state === '19';
+    }
+    return o.delivery_state === '4';
+  }).length;
+
   const pipelineStages = [
     { name: 'Shopify Ventas', value: realOrders.filter(o => o.canal === 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#3b82f6' },
     { name: 'WhatsApp Ventas', value: realOrders.filter(o => o.canal !== 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#10b981' },
@@ -225,7 +241,7 @@ export function Dashboard() {
       </div>
 
       {/* Styled KPIs Row matching Pedidos Hub */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
             <DollarSign size={18} />
@@ -237,6 +253,15 @@ export function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-success/10 text-success rounded-xl">
+            <TrendingUp size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Ticket Promedio</p>
+            <span className="text-base font-black text-text-primary">${averageTicketReal.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
             <ShoppingBag size={18} />
           </div>
           <div>
@@ -255,11 +280,20 @@ export function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-warning/10 text-warning rounded-xl">
-            <MessageCircle size={18} />
+            <Box size={18} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Chats Activos</p>
-            <span className="text-base font-black text-warning">{activeConversations}</span>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Por Enviar</p>
+            <span className="text-base font-black text-warning">{unfulfilledOrdersCount}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-success/10 text-success rounded-xl">
+            <Truck size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Entregados</p>
+            <span className="text-base font-black text-emerald-500">{deliveredCount}</span>
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { HokoOrder, HokoCity, HOKO_ORDER_STATES, HOKO_GUIDE_STATES_CO } from '../../../../types';
 import { Button } from '../../../../components/shared/Button';
+import Swal from 'sweetalert2';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -21,6 +22,52 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
   const [order, setOrder] = useState<HokoOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // SweetAlert2 notification helper
+  const showNotification = (title: string, text: string, icon: 'success' | 'error' | 'warning' | 'info') => {
+    if (typeof window === 'undefined') return;
+    const isDark = document.documentElement.classList.contains('dark');
+    const colorThemeMap = {
+      success: '#10b981',
+      error: '#ef4444',
+      warning: '#f59e0b',
+      info: '#3b82f6'
+    };
+    Swal.fire({
+      title,
+      text,
+      icon,
+      confirmButtonText: 'Entendido',
+      confirmButtonColor: colorThemeMap[icon],
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      customClass: {
+        popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+      }
+    });
+  };
+
+  // SweetAlert2 confirm helper
+  const showConfirm = async (title: string, text: string) => {
+    if (typeof window === 'undefined') return false;
+    const isDark = document.documentElement.classList.contains('dark');
+    const result = await Swal.fire({
+      title,
+      text,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, continuar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#374151',
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      customClass: {
+        popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+      }
+    });
+    return result.isConfirmed;
+  };
   const [cities, setCities] = useState<HokoCity[]>([]);
 
   // Edit form state
@@ -132,15 +179,16 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
   };
 
   const handleCancel = async () => {
-    if (!confirm('¿Estás seguro de cancelar esta orden?')) return;
+    const confirmed = await showConfirm('¿Cancelar Orden?', '¿Estás seguro de cancelar esta orden?');
+    if (!confirmed) return;
     setActionLoading(orderId);
     try {
       const data = await hokoFetch(`/member/order/cancel/${orderId}`, { method: 'POST' });
       if (data.error) throw new Error(data.error);
-      alert('Orden cancelada');
+      showNotification('Orden Cancelada', 'La orden ha sido cancelada exitosamente.', 'success');
       router.push('/ordenes');
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      showNotification('Error', e.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -151,10 +199,10 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
     try {
       const data = await hokoFetch(`/member/order/generate-guide/${orderId}`, { method: 'POST' });
       if (data.error) throw new Error(data.error);
-      alert('Guía generada exitosamente');
+      showNotification('Guía Generada', 'La guía ha sido generada exitosamente.', 'success');
       fetchOrderDetail();
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      showNotification('Error', e.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -209,11 +257,11 @@ export default function HokoPedidoDetailPage({ params }: PageProps) {
       const data = await hokoFormFetch(`/member/order/update/${order.id}`, formData);
       if (data.error) throw new Error(data.error);
 
-      alert('Orden actualizada con éxito.');
+      showNotification('Orden Actualizada', 'La orden ha sido actualizada con éxito.', 'success');
       setShowEdit(false);
       fetchOrderDetail();
     } catch (err: any) {
-      alert(`Error al actualizar orden: ${err.message}`);
+      showNotification('Error', `Error al actualizar orden: ${err.message}`, 'error');
     } finally {
       setEditing(false);
     }

@@ -9,9 +9,56 @@ import {
 import { HokoOrder, HokoCity, HokoQuotation, HOKO_ORDER_STATES, HOKO_GUIDE_STATES_CO } from '../../../types';
 import { useRouter } from 'next/navigation';
 import { Button } from '../../../components/shared/Button';
+import Swal from 'sweetalert2';
 
 export default function HokoPedidosPage() {
   const router = useRouter();
+
+  // SweetAlert2 notification helper
+  const showNotification = (title: string, text: string, icon: 'success' | 'error' | 'warning' | 'info') => {
+    if (typeof window === 'undefined') return;
+    const isDark = document.documentElement.classList.contains('dark');
+    const colorThemeMap = {
+      success: '#10b981',
+      error: '#ef4444',
+      warning: '#f59e0b',
+      info: '#3b82f6'
+    };
+    Swal.fire({
+      title,
+      text,
+      icon,
+      confirmButtonText: 'Entendido',
+      confirmButtonColor: colorThemeMap[icon],
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      customClass: {
+        popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+      }
+    });
+  };
+
+  // SweetAlert2 confirm helper
+  const showConfirm = async (title: string, text: string) => {
+    if (typeof window === 'undefined') return false;
+    const isDark = document.documentElement.classList.contains('dark');
+    const result = await Swal.fire({
+      title,
+      text,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, continuar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#374151',
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      customClass: {
+        popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+      }
+    });
+    return result.isConfirmed;
+  };
 
   // ── State ──
   const [orders, setOrders] = useState<HokoOrder[]>([]);
@@ -264,7 +311,7 @@ export default function HokoPedidosPage() {
       setShowCreate(false);
       fetchOrders(1);
     } catch (e: any) {
-      alert(`Error al crear orden: ${e.message}`);
+      showNotification('Error de Creación', `Error al crear orden: ${e.message}`, 'error');
     } finally {
       setCreating(false);
     }
@@ -276,10 +323,10 @@ export default function HokoPedidosPage() {
     try {
       const data = await hokoFetch(`/member/order/generate-guide/${id}`, { method: 'POST' });
       if (data.error) throw new Error(data.error);
-      alert('Guía generada exitosamente');
+      showNotification('Guía Generada', 'La guía ha sido generada exitosamente.', 'success');
       fetchOrderDetail(id);
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      showNotification('Error', e.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -287,16 +334,17 @@ export default function HokoPedidosPage() {
 
   // ── Cancel order ──
   const handleCancel = async (id: string) => {
-    if (!confirm('¿Estás seguro de cancelar esta orden?')) return;
+    const confirmed = await showConfirm('¿Cancelar Orden?', '¿Estás seguro de cancelar esta orden?');
+    if (!confirmed) return;
     setActionLoading(id);
     try {
       const data = await hokoFetch(`/member/order/cancel/${id}`, { method: 'POST' });
       if (data.error) throw new Error(data.error);
-      alert('Orden cancelada');
+      showNotification('Orden Cancelada', 'La orden ha sido cancelada exitosamente.', 'success');
       if (selectedOrder?.id === id) setSelectedOrder(null);
       fetchOrders(page);
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      showNotification('Error', e.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -352,11 +400,11 @@ export default function HokoPedidosPage() {
       const data = await hokoFormFetch(`/member/order/update/${selectedOrder.id}`, formData);
       if (data.error) throw new Error(data.error);
 
-      alert('Orden actualizada con éxito.');
+      showNotification('Orden Actualizada', 'La orden ha sido actualizada con éxito.', 'success');
       setShowEdit(false);
       fetchOrderDetail(selectedOrder.id);
     } catch (err: any) {
-      alert(`Error al actualizar orden: ${err.message}`);
+      showNotification('Error', `Error al actualizar orden: ${err.message}`, 'error');
     } finally {
       setEditing(false);
     }

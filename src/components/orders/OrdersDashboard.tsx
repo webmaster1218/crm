@@ -5,6 +5,7 @@ import { Search, ShoppingBag, RefreshCw, ChevronRight, Filter, X, Package, Truck
 import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
 import { useRouter } from 'next/navigation';
+import { CreateManualOrderModal } from './CreateManualOrderModal';
 
 interface OrdersDashboardProps {
   onViewOrderDetail: (id: string) => void;
@@ -19,6 +20,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
   const [connected, setConnected] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [filters, setFilters] = useState({
     status: 'ACTIVE' as OrderStatus | 'ALL',
@@ -407,6 +409,14 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
 
         <div className="flex items-center gap-2">
           <Button
+            variant="primary"
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 bg-brand hover:bg-brand/90 border-0 text-white shadow-sm shadow-brand/10 h-9 text-[11px] font-bold px-3 rounded-lg"
+          >
+            <ShoppingCart size={14} />
+            <span>Crear Venta</span>
+          </Button>
+          <Button
             variant="outline"
             onClick={fetchOrders}
             disabled={loading}
@@ -479,7 +489,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
       </div>
 
       {/* Extended KPIs Panel */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
             <DollarSign size={18} />
@@ -496,6 +506,15 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
           <div>
             <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Ticket Promedio</p>
             <span className="text-base font-black text-text-primary">${averageTicket.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+            <ShoppingBag size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Pedidos Totales</p>
+            <span className="text-base font-black text-text-primary">{totalOrders}</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -965,6 +984,12 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
       <div className="text-[10px] font-bold text-text-muted text-right">
         {filteredOrders.length} de {orders.length} pedidos
       </div>
+
+      <CreateManualOrderModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => fetchOrders()}
+      />
 
     </div>
   );

@@ -1,6 +1,6 @@
 {
-  "name": "WinnersHub",
-  "description": "Tu CRM inteligente - Gestión completa de clientes, ventas y mensajería - Winners Hub.",
+  "name": "TelocalizoChats",
+  "description": "Tu CRM inteligente - Gestión completa de clientes, ventas y mensajería - Telocalizo Chats.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
