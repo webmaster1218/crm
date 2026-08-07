@@ -25,6 +25,12 @@ export async function GET(request: NextRequest) {
     if (orderIdParam) {
       dbQuery = dbQuery.eq('id', orderIdParam);
     } else {
+      const statusParam = urlParams.get('status');
+      if (statusParam) {
+        dbQuery = dbQuery.eq('status', statusParam);
+      } else {
+        dbQuery = dbQuery.eq('status', 'COMFIRMADO');
+      }
       dbQuery = dbQuery.order('created_at', { ascending: false });
     }
 
