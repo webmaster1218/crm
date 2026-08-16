@@ -21,7 +21,9 @@ import {
   Activity,
   Layers,
   ChevronRight,
-  TrendingDown
+  TrendingDown,
+  Filter,
+  X
 } from 'lucide-react';
 import { ExportDropdown } from '../shared/ExportDropdown';
 import { exportToCSV, exportToXML, mapFinancialRow, buildTotalsRow, FINANCIAL_HEADERS, type FinancialOrderRow } from '../../utils/exportUtils';
@@ -50,6 +52,13 @@ export function Dashboard() {
   const [realOrders, setRealOrders] = useState<any[]>([]);
   const [realClients, setRealClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    canal: 'ALL',
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   // Financial values customizable from Settings
   const [costCogs, setCostCogs] = useState(30000);
@@ -178,21 +187,30 @@ export function Dashboard() {
     return order.total_paid || 0;
   };
 
+  // Filtered orders for dynamic calculations
+  const filteredOrders = realOrders.filter(order => {
+    const orderDate = new Date(order.created_at);
+    const matchesDateFrom = !filters.dateFrom || orderDate >= new Date(filters.dateFrom);
+    const matchesDateTo = !filters.dateTo || orderDate <= new Date(filters.dateTo + 'T23:59:59');
+    const matchesCanal = filters.canal === 'ALL' || order.canal === filters.canal;
+    return matchesDateFrom && matchesDateTo && matchesCanal;
+  });
+
   // Calculations General
-  const totalSalesReal = realOrders
+  const totalSalesReal = filteredOrders
     .filter(o => getOrderStatus(o) !== 'CANCELLED')
     .reduce((sum, o) => sum + getOrderTotalVal(o), 0);
 
-  const totalOrdersReal = realOrders.length;
+  const totalOrdersReal = filteredOrders.length;
   const totalClientsReal = realClients.length;
   const averageTicketReal = totalOrdersReal > 0 ? totalSalesReal / totalOrdersReal : 0;
 
-  const unfulfilledOrdersCount = realOrders.filter(o => {
+  const unfulfilledOrdersCount = filteredOrders.filter(o => {
     if (o.displayFulfillmentStatus) return o.displayFulfillmentStatus === 'UNFULFILLED';
     return o.delivery_state !== '4';
   }).length;
 
-  const deliveredCount = realOrders.filter(o => {
+  const deliveredCount = filteredOrders.filter(o => {
     if (o.guide) {
       const state = String(o.guide.state);
       return state === '3' || state === '17' || state === '19';
@@ -202,17 +220,17 @@ export function Dashboard() {
 
   // Telocalizo business specific calculations based on customized rules
   // 1. Cost of equipment (COGS)
-  const totalCOGS = realOrders
+  const totalCOGS = filteredOrders
     .filter(o => getOrderStatus(o) !== 'CANCELLED')
     .reduce((sum, o) => sum + ((o.quantity || 1) * costCogs), 0);
 
   // 2. Bold Commission
-  const totalBoldCommission = realOrders
+  const totalBoldCommission = filteredOrders
     .filter(o => getOrderStatus(o) !== 'CANCELLED' && (o.canal === 'pagina_web' || String(o.payment_type || '').toLowerCase().includes('tienda')))
     .reduce((sum, o) => sum + (getOrderTotalVal(o) * (boldPct / 100)), 0);
 
   // 3. Fletes / Envíos
-  const totalShippingCost = realOrders
+  const totalShippingCost = filteredOrders
     .filter(o => getOrderStatus(o) !== 'CANCELLED')
     .reduce((sum, o) => {
       const isRecaudo = !(o.canal === 'pagina_web' || String(o.payment_type || '').toLowerCase().includes('tienda'));
@@ -225,8 +243,8 @@ export function Dashboard() {
   const marginPercentage = totalSalesReal > 0 ? (totalUtilidadReal / totalSalesReal) * 100 : 0;
 
   // ── Export helpers ──
-  const buildFinancialRows = (): FinancialOrderRow[] =>
-    realOrders
+  const buildFinancialRows = (ordersList = filteredOrders): FinancialOrderRow[] =>
+    ordersList
       .filter(o => getOrderStatus(o) !== 'CANCELLED')
       .map(o => {
         const totalVenta = getOrderTotalVal(o);
@@ -251,16 +269,34 @@ export function Dashboard() {
         } satisfies FinancialOrderRow;
       });
 
-  const handleExportCSV = () => {
-    const financialRows = buildFinancialRows();
+  const handleExportCSV = (dateFrom?: string, dateTo?: string) => {
+    let source = filteredOrders;
+    if (dateFrom || dateTo) {
+      source = filteredOrders.filter(o => {
+        const orderDate = new Date(o.created_at);
+        const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+        const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+        return matchesFrom && matchesTo;
+      });
+    }
+    const financialRows = buildFinancialRows(source);
     const mappedRows = financialRows.map(mapFinancialRow);
     mappedRows.push(buildTotalsRow(financialRows));
     const date = new Date().toISOString().slice(0, 10);
     exportToCSV(FINANCIAL_HEADERS, mappedRows, `INFO_TELOCALIZO_TAG_${date}`);
   };
 
-  const handleExportXML = () => {
-    const financialRows = buildFinancialRows();
+  const handleExportXML = (dateFrom?: string, dateTo?: string) => {
+    let source = filteredOrders;
+    if (dateFrom || dateTo) {
+      source = filteredOrders.filter(o => {
+        const orderDate = new Date(o.created_at);
+        const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+        const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+        return matchesFrom && matchesTo;
+      });
+    }
+    const financialRows = buildFinancialRows(source);
     const mappedRows = financialRows.map(mapFinancialRow);
     const date = new Date().toISOString().slice(0, 10);
     exportToXML(FINANCIAL_HEADERS, mappedRows, `INFO_TELOCALIZO_TAG_${date}`, 'Liquidacion', 'Pedido', {
@@ -271,8 +307,8 @@ export function Dashboard() {
   };
 
   const pipelineStages = [
-    { name: 'Shopify Ventas', value: realOrders.filter(o => o.canal === 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#3b82f6' },
-    { name: 'WhatsApp Ventas', value: realOrders.filter(o => o.canal !== 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#10b981' },
+    { name: 'Shopify Ventas', value: filteredOrders.filter(o => o.canal === 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#3b82f6' },
+    { name: 'WhatsApp Ventas', value: filteredOrders.filter(o => o.canal !== 'pagina_web' && getOrderStatus(o) !== 'CANCELLED').reduce((sum, o) => sum + getOrderTotalVal(o), 0), color: '#10b981' },
   ];
 
   // Financial pie chart distribution data
@@ -294,7 +330,7 @@ export function Dashboard() {
       dailyMap.set(dateStr, { count: 0, sales: 0, profit: 0 });
     }
     
-    realOrders.forEach(o => {
+    filteredOrders.forEach(o => {
       const orderDate = new Date(o.created_at);
       const dateStr = orderDate.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
       if (dailyMap.has(dateStr)) {
@@ -348,6 +384,15 @@ export function Dashboard() {
         
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-2 rounded-xl border text-sm font-bold flex items-center justify-center gap-2 transition-colors whitespace-nowrap ${showFilters ? 'bg-brand text-white border-brand' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-text-primary border border-slate-200 dark:border-slate-800'}`}
+          >
+            <Filter size={14} /> Filtros
+            {(filters.dateFrom || filters.dateTo || filters.canal !== 'ALL') && (
+              <span className="bg-brand-bg text-brand dark:text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">!</span>
+            )}
+          </button>
           <button 
             onClick={fetchDashboardData}
             className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-text-primary border border-slate-200 dark:border-slate-800 font-bold px-4 py-2 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
@@ -358,7 +403,7 @@ export function Dashboard() {
             label="INFO TAG"
             onExportCSV={handleExportCSV}
             onExportXML={handleExportXML}
-            disabled={loading || realOrders.length === 0}
+            disabled={loading || filteredOrders.length === 0}
           />
           <button 
             onClick={() => router.push('/pipeline')}
@@ -368,6 +413,54 @@ export function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showFilters && (
+        <div className="bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm space-y-4 animate-in slide-in-from-top duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Origen (Canal)</label>
+              <select
+                value={filters.canal}
+                onChange={(e) => setFilters(f => ({ ...f, canal: e.target.value }))}
+                className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              >
+                <option value="ALL">Todos</option>
+                <option value="pagina_web">Shopify</option>
+                <option value="whatsApp">WhatsApp</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Desde</label>
+              <input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters(f => ({ ...f, dateFrom: e.target.value }))}
+                className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Hasta</label>
+              <input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters(f => ({ ...f, dateTo: e.target.value }))}
+                className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              />
+            </div>
+          </div>
+          {(filters.dateFrom || filters.dateTo || filters.canal !== 'ALL') && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setFilters({ dateFrom: '', dateTo: '', canal: 'ALL' })}
+                className="text-xs text-brand hover:underline font-bold"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Row 1: Financial KPIs */}
       <div className="space-y-2">

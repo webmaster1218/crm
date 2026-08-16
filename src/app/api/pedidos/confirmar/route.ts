@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   logger.info('=== INICIO POST /api/pedidos/confirmar ===');
   try {
     const body = await request.json();
-    const { id } = body;
+    const { id, hoko_order_id, courier_name } = body;
     
     if (!id) {
       logger.warn('POST /api/pedidos/confirmar llamado sin ID');
@@ -73,13 +73,22 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     logger.info(`Confirmando pedido ID: ${id} en tabla pedidos de Supabase...`);
     
+    const updateData: any = {
+      status: 'COMFIRMADO',
+      confirmed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (hoko_order_id !== undefined) {
+      updateData.hoko_order_id = hoko_order_id;
+    }
+    if (courier_name !== undefined) {
+      updateData.courier_name = courier_name;
+    }
+
     const { data, error } = await supabase
       .from('pedidos')
-      .update({
-        status: 'COMFIRMADO',
-        confirmed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select('*, clientes(*)');
 

@@ -18,6 +18,7 @@ import {
   BarChart3,
   CheckCircle2,
   XCircle,
+  Filter,
 } from 'lucide-react';
 import { ExportDropdown } from '../../../components/shared/ExportDropdown';
 import { exportToCSV, exportToXML, mapFinancialRow, buildTotalsRow, FINANCIAL_HEADERS, type FinancialOrderRow } from '../../../utils/exportUtils';
@@ -26,7 +27,15 @@ export default function LiquidacionPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCanal, setSelectedCanal] = useState('ALL');
+  const [filters, setFilters] = useState({
+    status: 'ALL',
+    payment: 'ALL',
+    fulfillment: 'ALL',
+    dateFrom: '',
+    dateTo: '',
+    canal: 'ALL',
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   // Dynamic parameters from Settings/localStorage
   const [costCogs, setCostCogs] = useState(30000);
@@ -170,14 +179,38 @@ export default function LiquidacionPage() {
     }
   };
 
+  const getFinancialStatus = (order: any): string => {
+    if (order.displayFinancialStatus) return order.displayFinancialStatus;
+    const payType = String(order.payment_type || '').toLowerCase();
+    if (payType.includes('pagado')) return 'PAID';
+    return 'PENDING';
+  };
+
+  const getFulfillmentStatus = (order: any): string => {
+    if (order.displayFulfillmentStatus) return order.displayFulfillmentStatus;
+    const state = String(order.delivery_state || '');
+    if (state === '4') return 'FULFILLED';
+    if (state === '2' || state === '3') return 'PARTIALLY_FULFILLED';
+    return 'UNFULFILLED';
+  };
+
   const filteredOrders = orders.filter(o => {
     const clientName = (o.customer?.name || '').toLowerCase();
     const orderName = (o.shopify_order_name || `#${o.db_id}`).toLowerCase();
     const city = (o.customer?.city || '').toLowerCase();
     const query = searchQuery.toLowerCase();
     const matchesSearch = clientName.includes(query) || orderName.includes(query) || city.includes(query);
-    const matchesCanal = selectedCanal === 'ALL' || o.canal === selectedCanal;
-    return matchesSearch && matchesCanal;
+    
+    const matchesStatus = filters.status === 'ALL' || getOrderStatus(o) === filters.status;
+    const matchesPayment = filters.payment === 'ALL' || getFinancialStatus(o) === filters.payment;
+    const matchesFulfillment = filters.fulfillment === 'ALL' || getFulfillmentStatus(o) === filters.fulfillment;
+    const matchesCanal = filters.canal === 'ALL' || o.canal === filters.canal;
+
+    const orderDate = new Date(o.created_at);
+    const matchesDateFrom = !filters.dateFrom || orderDate >= new Date(filters.dateFrom);
+    const matchesDateTo = !filters.dateTo || orderDate <= new Date(filters.dateTo + 'T23:59:59');
+
+    return matchesSearch && matchesCanal && matchesStatus && matchesPayment && matchesFulfillment && matchesDateFrom && matchesDateTo;
   });
 
   const sortedOrders = [...filteredOrders].sort((a, b) => {
@@ -212,8 +245,8 @@ export default function LiquidacionPage() {
   const marginPct = sumSales > 0 ? (sumUtilidad / sumSales) * 100 : 0;
   const totalExpenses = sumCogs + sumBold + sumShipping;
 
-  const buildFinancialRows = (): FinancialOrderRow[] =>
-    sortedOrders.map(o => {
+  const buildFinancialRows = (ordersList = sortedOrders): FinancialOrderRow[] =>
+    ordersList.map(o => {
       const f = getOrderFinancials(o);
       return {
         pedido: o.shopify_order_name || `#${o.db_id}`,
@@ -231,16 +264,34 @@ export default function LiquidacionPage() {
       } satisfies FinancialOrderRow;
     });
 
-  const handleExportCSV = () => {
-    const financialRows = buildFinancialRows();
+  const handleExportCSV = (dateFrom?: string, dateTo?: string) => {
+    let source = sortedOrders;
+    if (dateFrom || dateTo) {
+      source = sortedOrders.filter(o => {
+        const orderDate = new Date(o.created_at);
+        const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+        const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+        return matchesFrom && matchesTo;
+      });
+    }
+    const financialRows = buildFinancialRows(source);
     const mappedRows = financialRows.map(mapFinancialRow);
     mappedRows.push(buildTotalsRow(financialRows));
     const date = new Date().toISOString().slice(0, 10);
     exportToCSV(FINANCIAL_HEADERS, mappedRows, `liquidacion_telocalizo_${date}`);
   };
 
-  const handleExportXML = () => {
-    const financialRows = buildFinancialRows();
+  const handleExportXML = (dateFrom?: string, dateTo?: string) => {
+    let source = sortedOrders;
+    if (dateFrom || dateTo) {
+      source = sortedOrders.filter(o => {
+        const orderDate = new Date(o.created_at);
+        const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+        const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+        return matchesFrom && matchesTo;
+      });
+    }
+    const financialRows = buildFinancialRows(source);
     const mappedRows = financialRows.map(mapFinancialRow);
     const date = new Date().toISOString().slice(0, 10);
     exportToXML(FINANCIAL_HEADERS, mappedRows, `liquidacion_telocalizo_${date}`, 'Liquidacion', 'Pedido', {
@@ -448,25 +499,105 @@ export default function LiquidacionPage() {
           />
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <select
-            value={selectedCanal}
-            onChange={(e) => setSelectedCanal(e.target.value)}
-            className="w-full md:w-44 px-3 py-2 text-xs font-black uppercase tracking-wider rounded-xl border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand/20"
-          >
-            <option value="ALL">Todos los canales</option>
-            <option value="pagina_web">Shopify</option>
-            <option value="chat">WhatsApp / Chat</option>
-          </select>
-        </div>
-        {(searchQuery || selectedCanal !== 'ALL') && (
           <button
-            onClick={() => { setSearchQuery(''); setSelectedCanal('ALL'); }}
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-black uppercase tracking-wider transition-all ${showFilters ? 'bg-brand text-white border-brand' : 'border-slate-200/50 dark:border-slate-800 text-text-muted hover:text-text-primary'}`}
+          >
+            <Filter size={13} />
+            <span>Filtros</span>
+            {((filters.status !== 'ALL' || filters.payment !== 'ALL' || filters.fulfillment !== 'ALL' || filters.canal !== 'ALL' || filters.dateFrom || filters.dateTo) ? 1 : 0) > 0 && (
+              <span className="bg-brand-bg text-brand dark:text-white text-[9px] px-1.5 py-0.5 rounded-full font-black">!</span>
+            )}
+          </button>
+        </div>
+        {(searchQuery || filters.status !== 'ALL' || filters.payment !== 'ALL' || filters.fulfillment !== 'ALL' || filters.canal !== 'ALL' || filters.dateFrom || filters.dateTo) && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setFilters({ status: 'ALL', payment: 'ALL', fulfillment: 'ALL', dateFrom: '', dateTo: '', canal: 'ALL' });
+            }}
             className="text-[10px] font-bold text-brand hover:underline shrink-0"
           >
             Limpiar filtros
           </button>
         )}
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showFilters && (
+        <div className="bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm space-y-4 animate-in slide-in-from-top duration-300">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Estado</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters(f => ({ ...f, status: e.target.value }))}
+                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              >
+                <option value="ALL">Todos</option>
+                <option value="ACTIVE">Activos</option>
+                <option value="CANCELLED">Cancelados</option>
+                <option value="VOIDED">Anulados</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Pago</label>
+              <select
+                value={filters.payment}
+                onChange={(e) => setFilters(f => ({ ...f, payment: e.target.value }))}
+                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              >
+                <option value="ALL">Todos</option>
+                <option value="PAID">Pagado</option>
+                <option value="PENDING">Pendiente</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Preparación</label>
+              <select
+                value={filters.fulfillment}
+                onChange={(e) => setFilters(f => ({ ...f, fulfillment: e.target.value }))}
+                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              >
+                <option value="ALL">Todos</option>
+                <option value="UNFULFILLED">No preparado</option>
+                <option value="FULFILLED">Preparado</option>
+                <option value="PARTIALLY_FULFILLED">Parcial</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Origen (Canal)</label>
+              <select
+                value={filters.canal}
+                onChange={(e) => setFilters(f => ({ ...f, canal: e.target.value }))}
+                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              >
+                <option value="ALL">Todos</option>
+                <option value="pagina_web">Shopify</option>
+                <option value="whatsApp">WhatsApp</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Desde</label>
+              <input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters(f => ({ ...f, dateFrom: e.target.value }))}
+                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Hasta</label>
+              <input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters(f => ({ ...f, dateTo: e.target.value }))}
+                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Table ── */}
       <div className="bg-card rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm overflow-hidden">

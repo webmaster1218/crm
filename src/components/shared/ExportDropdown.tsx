@@ -2,10 +2,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, FileSpreadsheet, FileCode2, ChevronDown } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 interface ExportDropdownProps {
-  onExportCSV: () => void;
-  onExportXML: () => void;
+  onExportCSV: (dateFrom?: string, dateTo?: string) => void;
+  onExportXML: (dateFrom?: string, dateTo?: string) => void;
   disabled?: boolean;
   label?: string;
   className?: string;
@@ -31,14 +32,58 @@ export function ExportDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const promptDatesAndExport = async (exportFn: (dateFrom?: string, dateTo?: string) => void) => {
+    const isDark = document.documentElement.classList.contains('dark');
+    
+    const { value: formValues } = await Swal.fire({
+      title: 'Rango de fechas para exportar',
+      html: `
+        <div class="flex flex-col gap-3 text-left">
+          <p class="text-[10px] font-black text-text-muted uppercase tracking-wider mb-1">
+            Deja los campos vacíos si deseas exportar todo según el filtro de la pantalla actual.
+          </p>
+          <div>
+            <label class="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">Fecha Desde (Opcional):</label>
+            <input id="swal-export-from" type="date" class="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20">
+          </div>
+          <div>
+            <label class="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">Fecha Hasta (Opcional):</label>
+            <input id="swal-export-to" type="date" class="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20">
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Exportar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#374151',
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      customClass: {
+        popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+      },
+      preConfirm: () => {
+        return {
+          dateFrom: (document.getElementById('swal-export-from') as HTMLInputElement).value,
+          dateTo: (document.getElementById('swal-export-to') as HTMLInputElement).value
+        }
+      }
+    });
+
+    if (formValues) {
+      exportFn(formValues.dateFrom, formValues.dateTo);
+    }
+  };
+
   const handleCSV = () => {
     setOpen(false);
-    onExportCSV();
+    promptDatesAndExport(onExportCSV);
   };
 
   const handleXML = () => {
     setOpen(false);
-    onExportXML();
+    promptDatesAndExport(onExportXML);
   };
 
   return (

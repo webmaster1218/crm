@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, ShoppingBag, RefreshCw, ChevronRight, Filter, X, Package, Truck, FileSpreadsheet, CreditCard, DollarSign, TrendingUp, ShoppingCart } from 'lucide-react';
+import { Search, ShoppingBag, RefreshCw, ChevronRight, Filter, X, Package, Truck, FileSpreadsheet, CreditCard, DollarSign, TrendingUp, ShoppingCart, Box } from 'lucide-react';
 import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
 import { ExportDropdown } from '../shared/ExportDropdown';
@@ -487,6 +487,36 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
     return sum + itemsCount;
   }, 0);
 
+  const getTopProduct = () => {
+    const productQuantities: Record<string, number> = {};
+    
+    filteredOrders.forEach(order => {
+      if (order.lineItems?.edges) {
+        order.lineItems.edges.forEach((e: any) => {
+          const title = e.node.title || 'Producto';
+          const qty = e.node.quantity || 1;
+          productQuantities[title] = (productQuantities[title] || 0) + qty;
+        });
+      } else {
+        const title = order.contain || 'Localizador / Accesorio';
+        const qty = order.quantity || 1;
+        productQuantities[title] = (productQuantities[title] || 0) + qty;
+      }
+    });
+
+    let topName = 'Ninguno';
+    let maxQty = 0;
+    for (const [name, qty] of Object.entries(productQuantities)) {
+      if (qty > maxQty) {
+        maxQty = qty;
+        topName = name;
+      }
+    }
+    return { name: topName, quantity: maxQty };
+  };
+
+  const topProduct = getTopProduct();
+
   const unfulfilledOrdersCount = filteredOrders.filter(o => getFulfillmentStatus(o) === 'UNFULFILLED').length;
   const fulfilledOrdersCount = filteredOrders.filter(o => getFulfillmentStatus(o) === 'FULFILLED').length;
   const deliveredCount = filteredOrders.filter(o => getDeliveryStatusFilterValue(o) === 'DELIVERED').length;
@@ -553,14 +583,24 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
           <ExportDropdown
             label="Exportar"
             disabled={loading || filteredOrders.length === 0}
-            onExportCSV={() => {
+            onExportCSV={(dateFrom, dateTo) => {
               const headers = [
-                'Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono',
+                'Pedido', 'ID Shopify', 'Fecha', 'Cliente', 'Email', 'Teléfono',
                 'Dirección Envío', 'Ciudad Envío', 'Origen/Canal',
-                'Total', 'Estado Pago', 'Estado Prep', 'Estado Entrega', 'Hoko ID'
+                'Total', 'Estado Pago', 'Estado Prep', 'Estado Entrega', 'Hoko ID', 'Estado CRM'
               ];
-              const rows = filteredOrders.map(order => ({
+              let exportSource = filteredOrders;
+              if (dateFrom || dateTo) {
+                exportSource = filteredOrders.filter(order => {
+                  const orderDate = new Date(order.created_at);
+                  const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+                  const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+                  return matchesFrom && matchesTo;
+                });
+              }
+              const rows = exportSource.map(order => ({
                 'Pedido': order.shopify_order_name || `#${order.db_id}`,
+                'ID Shopify': order.shopify_order_id || '—',
                 'Fecha': new Date(order.created_at).toLocaleString('es-CO'),
                 'Cliente': order.customer?.name || 'Sin cliente',
                 'Email': order.customer?.email || '—',
@@ -573,17 +613,28 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                 'Estado Prep': getFulfillmentStatusLabel(getFulfillmentStatus(order)).text,
                 'Estado Entrega': getDeliveryStatus(order).text,
                 'Hoko ID': order.hoko_order_id || '—',
+                'Estado CRM': order.status || 'COMFIRMADO',
               }));
               exportToCSV(headers, rows, `pedidos_hub_${new Date().toISOString().slice(0,10)}`);
             }}
-            onExportXML={() => {
+            onExportXML={(dateFrom, dateTo) => {
               const headers = [
-                'Pedido', 'Fecha', 'Cliente', 'Email', 'Teléfono',
+                'Pedido', 'ID Shopify', 'Fecha', 'Cliente', 'Email', 'Teléfono',
                 'Dirección Envío', 'Ciudad Envío', 'Origen/Canal',
-                'Total', 'Estado Pago', 'Estado Prep', 'Estado Entrega', 'Hoko ID'
+                'Total', 'Estado Pago', 'Estado Prep', 'Estado Entrega', 'Hoko ID', 'Estado CRM'
               ];
-              const rows = filteredOrders.map(order => ({
+              let exportSource = filteredOrders;
+              if (dateFrom || dateTo) {
+                exportSource = filteredOrders.filter(order => {
+                  const orderDate = new Date(order.created_at);
+                  const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+                  const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+                  return matchesFrom && matchesTo;
+                });
+              }
+              const rows = exportSource.map(order => ({
                 'Pedido': order.shopify_order_name || `#${order.db_id}`,
+                'ID Shopify': order.shopify_order_id || '—',
                 'Fecha': new Date(order.created_at).toLocaleString('es-CO'),
                 'Cliente': order.customer?.name || 'Sin cliente',
                 'Email': order.customer?.email || '—',
@@ -596,6 +647,7 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                 'Estado Prep': getFulfillmentStatusLabel(getFulfillmentStatus(order)).text,
                 'Estado Entrega': getDeliveryStatus(order).text,
                 'Hoko ID': order.hoko_order_id || '—',
+                'Estado CRM': order.status || 'COMFIRMADO',
               }));
               exportToXML(headers, rows, `pedidos_hub_${new Date().toISOString().slice(0,10)}`, 'PedidosHub', 'Pedido');
             }}
@@ -604,7 +656,16 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
       </div>
 
       {/* Extended KPIs Panel */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+            <ShoppingBag size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Pedidos Totales</p>
+            <span className="text-base font-black text-text-primary">{totalOrders}</span>
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
             <DollarSign size={18} />
@@ -625,15 +686,6 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
         </div>
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
-            <ShoppingBag size={18} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Pedidos Totales</p>
-            <span className="text-base font-black text-text-primary">{totalOrders}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
             <ShoppingCart size={18} />
           </div>
           <div>
@@ -648,6 +700,26 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
           <div>
             <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Ventas Chat</p>
             <span className="text-base font-black text-text-primary">${salesWhatsApp.toLocaleString('es-CO')}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
+            <Package size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Productos Vendidos</p>
+            <span className="text-base font-black text-text-primary">{totalItemsOrdered}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-success/10 text-success rounded-xl">
+            <Box size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Producto Más Vendido</p>
+            <span className="text-[11px] font-black text-text-primary block leading-tight mt-0.5" title={topProduct.name}>
+              {topProduct.name} <span className="text-brand font-bold">({topProduct.quantity})</span>
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">

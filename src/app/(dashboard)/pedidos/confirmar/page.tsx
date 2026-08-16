@@ -10,6 +10,7 @@ import { Button } from '../../../../components/shared/Button';
 import { Badge } from '../../../../components/shared/Badge';
 import { ExportDropdown } from '../../../../components/shared/ExportDropdown';
 import { exportToCSV, exportToXML } from '../../../../utils/exportUtils';
+import Swal from 'sweetalert2';
 
 interface PedidoPorConfirmar {
   id: number;
@@ -57,24 +58,130 @@ export default function PedidosConfirmarPage() {
   }, []);
 
   const handleConfirmOrder = async (id: number) => {
-    if (!confirm('¿Estás seguro de que deseas marcar este pedido como confirmado?')) return;
+    const isDark = document.documentElement.classList.contains('dark');
+    
+    // Step 1: Ask if it's Hoko or another shipping method
+    const routeChoice = await Swal.fire({
+      title: 'Confirmar Pedido',
+      text: '¿Cómo se enviará este pedido?',
+      icon: 'question',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: 'Por Hoko',
+      denyButtonText: 'Otro canal',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#10b981',
+      denyButtonColor: '#3b82f6',
+      cancelButtonColor: '#374151',
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      customClass: {
+        popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+      }
+    });
+
+    if (routeChoice.isDismissed) return;
+
+    let hoko_order_id = null;
+    let courier_name = null;
+
+    if (routeChoice.isConfirmed) {
+      // User chose Hoko: ask for Hoko Order ID
+      const hokoPrompt = await Swal.fire({
+        title: 'ID de Orden Hoko',
+        input: 'text',
+        inputLabel: 'Ingresa el ID de la orden en Hoko para este pedido:',
+        inputPlaceholder: 'ID de la orden Hoko',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#374151',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        inputValidator: (value) => {
+          if (!value) {
+            return '¡Es obligatorio ingresar el ID de orden de Hoko!';
+          }
+        },
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+
+      if (!hokoPrompt.isConfirmed) return;
+      hoko_order_id = hokoPrompt.value;
+    } else if (routeChoice.isDenied) {
+      // User chose Other: ask to specify courier/method
+      const otherPrompt = await Swal.fire({
+        title: 'Especificar Canal de Envío',
+        input: 'text',
+        inputLabel: '¿Por qué medio/canal se enviará este pedido?',
+        inputPlaceholder: 'Ej. Servientrega Manual, Enviar por Coordinadora, Motomensajero...',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#374151',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        inputValidator: (value) => {
+          if (!value) {
+            return '¡Es obligatorio especificar por dónde se envía el pedido!';
+          }
+        },
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+
+      if (!otherPrompt.isConfirmed) return;
+      courier_name = otherPrompt.value;
+    }
+
     setActionLoadingId(id);
     try {
       const res = await fetch('/api/pedidos/confirmar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
+        body: JSON.stringify({ id, hoko_order_id, courier_name })
       });
-      if (!res.ok) throw new Error('Error al confirmar el pedido.');
+      
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al confirmar el pedido.');
+      }
       
       // Update local state
       setPedidos(prev => 
         prev.map(p => p.id === id ? { ...p, status: 'COMFIRMADO', confirmed_at: new Date().toISOString() } : p)
       );
       
-      alert('Pedido confirmado exitosamente.');
+      Swal.fire({
+        title: 'Pedido Confirmado',
+        text: 'El pedido ha sido marcado como confirmado exitosamente.',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false,
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
     } catch (e: any) {
-      alert(`Error: ${e.message}`);
+      Swal.fire({
+        title: 'Error',
+        text: e.message || 'Error al confirmar el pedido.',
+        icon: 'error',
+        confirmButtonText: 'Aceptar',
+        confirmButtonColor: '#ef4444',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
     } finally {
       setActionLoadingId(null);
     }
@@ -147,9 +254,18 @@ export default function PedidosConfirmarPage() {
           <ExportDropdown
             label="Exportar"
             disabled={loading || pedidos.length === 0}
-            onExportCSV={() => {
+            onExportCSV={(dateFrom, dateTo) => {
               const headers = ['ID', 'Pedido Shopify', 'Cliente', 'Email', 'Teléfono', 'Ciudad', 'Dirección', 'Cantidad', 'Método Pago', 'Estado', 'Creado', 'Confirmado'];
-              const rows = filteredPedidos.map(p => ({
+              let exportSource = filteredPedidos;
+              if (dateFrom || dateTo) {
+                exportSource = filteredPedidos.filter(p => {
+                  const orderDate = new Date(p.created_at);
+                  const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+                  const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+                  return matchesFrom && matchesTo;
+                });
+              }
+              const rows = exportSource.map(p => ({
                 'ID': p.id,
                 'Pedido Shopify': p.external_order_id || p.shopify_order_id || '—',
                 'Cliente': p.name || '—',
@@ -165,9 +281,18 @@ export default function PedidosConfirmarPage() {
               }));
               exportToCSV(headers, rows, `pedidos_confirmar_${new Date().toISOString().slice(0,10)}`);
             }}
-            onExportXML={() => {
+            onExportXML={(dateFrom, dateTo) => {
               const headers = ['ID', 'Pedido Shopify', 'Cliente', 'Email', 'Teléfono', 'Ciudad', 'Dirección', 'Cantidad', 'Método Pago', 'Estado', 'Creado', 'Confirmado'];
-              const rows = filteredPedidos.map(p => ({
+              let exportSource = filteredPedidos;
+              if (dateFrom || dateTo) {
+                exportSource = filteredPedidos.filter(p => {
+                  const orderDate = new Date(p.created_at);
+                  const matchesFrom = !dateFrom || orderDate >= new Date(dateFrom);
+                  const matchesTo = !dateTo || orderDate <= new Date(dateTo + 'T23:59:59');
+                  return matchesFrom && matchesTo;
+                });
+              }
+              const rows = exportSource.map(p => ({
                 'ID': p.id,
                 'Pedido Shopify': p.external_order_id || p.shopify_order_id || '—',
                 'Cliente': p.name || '—',
