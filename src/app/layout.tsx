@@ -14,13 +14,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Telocalizo Chats',
-  description: 'Sistema de gestión de clientes y pedidos - Telocalizo Chats',
+  title: 'Pedidos Telocalizo',
+  description: 'Sistema de gestión de clientes y pedidos - Pedidos Telocalizo',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Telocalizo Chats',
+    title: 'Pedidos Telocalizo',
     startupImage: '/icono-fabrica-winners.png',
   },
   icons: {

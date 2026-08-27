@@ -129,11 +129,11 @@ export default function LoginPage() {
         <div className="text-center mb-8 flex flex-col items-center">
           <img 
             src="/icono-fabrica-winners-sin-fondo.png" 
-            alt="Telocalizo Chats Logo" 
+            alt="Pedidos Telocalizo Logo" 
             className="w-20 h-20 object-cover border border-brand/10 mb-3 shadow-lg shadow-brand/5"
           />
           <h1 className="text-3xl font-extrabold text-text-primary tracking-tight bg-gradient-to-r from-orange-600 to-amber-600 dark:from-orange-400 dark:to-amber-400 bg-clip-text text-transparent">
-            Telocalizo Chats
+            Pedidos Telocalizo
           </h1>
           <p className="text-sm text-text-secondary mt-2">
             {isRegistering ? 'Crea una cuenta para comenzar' : 'Inicia sesión para acceder a tu panel'}

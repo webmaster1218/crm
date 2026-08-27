@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ClipboardCheck, Search, Filter, RefreshCw, CheckCircle2, AlertCircle,
   User, Mail, Phone, MapPin, Calendar, ShoppingCart, DollarSign, ExternalLink
@@ -11,6 +11,7 @@ import { Badge } from '../../../../components/shared/Badge';
 import { ExportDropdown } from '../../../../components/shared/ExportDropdown';
 import { exportToCSV, exportToXML } from '../../../../utils/exportUtils';
 import Swal from 'sweetalert2';
+import { CreateManualOrderModal } from '../../../../components/orders/CreateManualOrderModal';
 
 interface PedidoPorConfirmar {
   id: number;
@@ -31,12 +32,25 @@ interface PedidoPorConfirmar {
 
 export default function PedidosConfirmarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pedidos, setPedidos] = useState<PedidoPorConfirmar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q !== null) {
+      setSearchQuery(q);
+    }
+  }, [searchParams]);
+
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ESPERANDO_COMFIRMACION' | 'COMFIRMADO'>('ESPERANDO_COMFIRMACION');
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+  
+  // Create sale modal states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedPedidoPrefill, setSelectedPedidoPrefill] = useState<PedidoPorConfirmar | null>(null);
 
   const fetchPedidos = async () => {
     setLoading(true);
@@ -480,11 +494,13 @@ export default function PedidosConfirmarPage() {
                       {pedido.status === 'ESPERANDO_COMFIRMACION' ? (
                         <Button
                           variant="primary"
-                          onClick={() => handleConfirmOrder(pedido.id)}
-                          disabled={actionLoadingId === pedido.id}
+                          onClick={() => {
+                            setSelectedPedidoPrefill(pedido);
+                            setShowCreateModal(true);
+                          }}
                           className="h-7 px-3 text-[10px] font-black uppercase rounded-lg shadow-sm"
                         >
-                          {actionLoadingId === pedido.id ? 'Cargando...' : 'Confirmar'}
+                          Confirmar
                         </Button>
                       ) : (
                         <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">
@@ -499,6 +515,16 @@ export default function PedidosConfirmarPage() {
           </div>
         )}
       </div>
+
+      <CreateManualOrderModal
+        isOpen={showCreateModal}
+        onClose={() => {
+          setShowCreateModal(false);
+          setSelectedPedidoPrefill(null);
+        }}
+        onSuccess={fetchPedidos}
+        prefilledOrder={selectedPedidoPrefill}
+      />
 
     </div>
   );

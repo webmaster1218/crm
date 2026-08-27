@@ -46,11 +46,12 @@ interface CreateManualOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  prefilledOrder?: any;
 }
 
 type StepId = 'destinatario' | 'productos_envio';
 
-export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateManualOrderModalProps) {
+export function CreateManualOrderModal({ isOpen, onClose, onSuccess, prefilledOrder }: CreateManualOrderModalProps) {
   const [activeStep, setActiveStep] = useState<StepId>('destinatario');
   const [cities, setCities] = useState<HokoCity[]>([]);
   const [stocks, setStocks] = useState<any[]>([]);
@@ -77,11 +78,87 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
   const [quantity, setQuantity] = useState(1);
   const [paymentType, setPaymentType] = useState('pago contra entrega'); // Hoko: 0 (Contraentrega) / 1 (Pago anticipado)
   const [selectedCourier, setSelectedCourier] = useState<HokoQuotation | null>(null);
-  const [declaredValue, setDeclaredValue] = useState('100000');
+  const [declaredValue, setDeclaredValue] = useState('10000');
 
   // Custom price input
   const [customPrice, setCustomPrice] = useState<string>('199000');
   const [accesoApp, setAccesoApp] = useState('PENDIENTE APP');
+
+  // Integrated Delivery Method states
+  const [deliveryMethod, setDeliveryMethod] = useState<'hoko_auto' | 'hoko_manual' | 'other'>('hoko_auto');
+  const [manualHokoId, setManualHokoId] = useState('');
+  const [otherCourierName, setOtherCourierName] = useState('');
+
+  // Prefill customer states if prefilledOrder is provided
+  useEffect(() => {
+    if (isOpen && prefilledOrder) {
+      setCustomer({
+        name: prefilledOrder.name || '',
+        email: prefilledOrder.email || '',
+        phone: prefilledOrder.phone || '',
+        identification: prefilledOrder.identification || '',
+        address: prefilledOrder.address || '',
+        city: prefilledOrder.city || '',
+        city_id: '' // Will match dynamically
+      });
+      if (prefilledOrder.quantity) {
+        setQuantity(prefilledOrder.quantity);
+      }
+      if (prefilledOrder.metodo_pago) {
+        const p = String(prefilledOrder.metodo_pago).toLowerCase();
+        if (p === 'cod' || p === 'pago contra entrega' || p.includes('entrega') || p === 'pending') {
+          setPaymentType('pago contra entrega');
+        } else {
+          setPaymentType('pagado en la tienda');
+        }
+      }
+      setCitySearchText(prefilledOrder.city || '');
+      setManualHokoId('');
+      setOtherCourierName('');
+      setDeliveryMethod('hoko_auto');
+      setActiveStep('destinatario');
+    } else if (isOpen) {
+      setCustomer({
+        name: '',
+        email: '',
+        phone: '',
+        identification: '',
+        address: '',
+        city: '',
+        city_id: ''
+      });
+      setQuantity(1);
+      setPaymentType('pago contra entrega');
+      setCitySearchText('');
+      setManualHokoId('');
+      setOtherCourierName('');
+      setDeliveryMethod('hoko_auto');
+      setActiveStep('destinatario');
+    }
+  }, [isOpen, prefilledOrder]);
+
+  // Match prefilled city when cities load
+  useEffect(() => {
+    if (isOpen && prefilledOrder && cities.length > 0 && !customer.city_id) {
+      const cityName = prefilledOrder.city || '';
+      if (!cityName) return;
+      const cleanName = cityName.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      const matchedCity = cities.find(c => {
+        const cName = c.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return cName === cleanName || cName.includes(cleanName) || cleanName.includes(cName);
+      });
+
+      if (matchedCity) {
+        setCustomer(prev => ({
+          ...prev,
+          city: matchedCity.name,
+          city_id: String(matchedCity.id)
+        }));
+        setCitySearchText(matchedCity.name);
+      }
+    }
+  }, [cities, prefilledOrder, isOpen]);
 
   // Helper for SweetAlert2 notifications
   const showNotification = (title: string, text: string, icon: 'success' | 'error' | 'warning' | 'info') => {
@@ -261,10 +338,6 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
       });
       const list = data.data || data.quotations || [];
       setQuotations(list);
-      if (list.length > 0) {
-        // Auto select first courier
-        setSelectedCourier(list[0]);
-      }
     } catch (e) {
       console.error('Error fetching quotation:', e);
       showNotification('Error de Cotización', 'Error al realizar la cotización de envío.', 'error');
@@ -299,9 +372,6 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
           });
           const list = data.data || data.quotations || [];
           setQuotations(list);
-          if (list.length > 0) {
-            setSelectedCourier(list[0]);
-          }
         } catch (e) {
           console.error('Error fetching quotation automatically:', e);
         } finally {
@@ -317,8 +387,16 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
   // Submit order to API
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourier) {
+    if (deliveryMethod === 'hoko_auto' && !selectedCourier) {
       showNotification('Transportadora Requerida', 'Por favor cotiza el envío y selecciona una transportadora en la Fase 2.', 'warning');
+      return;
+    }
+    if (deliveryMethod === 'hoko_manual' && !manualHokoId.trim()) {
+      showNotification('ID Requerido', 'Por favor ingresa el ID de orden de Hoko manual.', 'warning');
+      return;
+    }
+    if (deliveryMethod === 'other' && !otherCourierName.trim()) {
+      showNotification('Canal Requerido', 'Por favor especifica por cuál canal se envía.', 'warning');
       return;
     }
     setSubmitting(true);
@@ -329,17 +407,22 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
       const payload = {
         customer: {
           ...customer,
-          city: selectedCityObj ? `${selectedCityObj.name}, ${getCityDept(selectedCityObj)}` : ''
+          city: selectedCityObj ? `${selectedCityObj.name}, ${getCityDept(selectedCityObj)}` : (customer.city || '')
         },
         stock_id: Number(selectedStockId),
         quantity,
         price_by_unit: pricePerUnit,
-        courier_id: selectedCourier.courier_id,
-        courier_name: selectedCourier.courier_name,
+        courier_id: deliveryMethod === 'hoko_auto' ? selectedCourier?.courier_id : null,
+        courier_name: deliveryMethod === 'hoko_auto' ? selectedCourier?.courier_name : '',
         payment_type: paymentType,
         total_paid: totalItemsPrice,
         declared_value: declaredValue,
-        acceso_app: accesoApp
+        acceso_app: accesoApp,
+        // Added properties
+        pedido_id: prefilledOrder?.id || null,
+        delivery_method: deliveryMethod,
+        manual_hoko_id: manualHokoId,
+        other_courier_name: otherCourierName
       };
 
       const res = await fetch('/api/pedidos', {
@@ -422,10 +505,11 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
               <button
                 type="button"
                 onClick={() => {
-                  if (customer.name.trim() !== '' && customer.phone.trim() !== '' && customer.city_id !== '') {
+                  if (customer.name.trim() !== '' && customer.phone.trim() !== '' && customer.city_id !== '' && customer.address.trim() !== '') {
                     setActiveStep('productos_envio');
+                    setErrorMsg(null);
                   } else {
-                    alert('Por favor completa los datos del destinatario primero.');
+                    setErrorMsg('Por favor completa los datos del destinatario (Nombre, Celular, Dirección y Ciudad) antes de pasar a la Fase 2.');
                   }
                 }}
                 className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all text-left group ${
@@ -615,144 +699,215 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
                 </div>
               </div>
             )}
-
             {/* FASE 2: Productos, Precios y Envío */}
             {activeStep === 'productos_envio' && (
               <div className="space-y-5 max-w-2xl">
                 
-                {/* Bodega / Stock de Producto */}
-                <div>
-                  <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Bodega / Stock de Producto *</label>
-                  <select
-                    value={selectedStockId}
-                    onChange={e => setSelectedStockId(e.target.value)}
-                    className="w-full text-xs font-bold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 appearance-none cursor-pointer"
-                  >
-                    {stocks.map(s => {
-                      const cellar = s.cellar_name || (s.cellar_id === 2353 ? 'FULFILLMENT BOGOTA Telocalizo' : s.cellar_id === 3391 ? 'FULFILLMENT MEDELLIN TELOCALIZO' : `Bodega #${s.cellar_id}`);
-                      return (
-                        <option key={s.id} value={s.id}>
-                          [{cellar}] {s.name} (Disp: {s.amount} u. - Sug: ${Number(s.price_by_unit || 199000).toLocaleString('es-CO')})
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                {/* Qty & Custom Price */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Cantidad *</label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={quantity}
-                      onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full text-xs font-bold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 text-center font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Precio Unitario Personalizado ($) *</label>
-                    <div className="relative mt-1">
-                      <input
-                        type="text"
-                        required
-                        value={customPrice}
-                        onChange={e => setCustomPrice(e.target.value)}
-                        className="w-full text-xs font-black text-brand pl-8 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl focus:outline-none focus:border-brand"
-                        placeholder="Ej. 159.200"
-                      />
-                      <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Method Payment & Declared Value */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Método de Pago *</label>
-                    <select
-                      value={paymentType}
-                      onChange={e => setPaymentType(e.target.value)}
-                      className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 appearance-none cursor-pointer"
-                    >
-                      <option value="pago contra entrega">Contra entrega</option>
-                      <option value="pagado en la tienda">Pago Anticipado / Tienda</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Valor Declarado *</label>
-                    <input
-                      type="number"
-                      required
-                      value={declaredValue}
-                      onChange={e => setDeclaredValue(e.target.value)}
-                      className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1"
-                    />
-                  </div>
-                </div>
-
-                {/* Acceso App */}
-                <div>
-                  <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Acceso a Plataforma / App *</label>
-                  <select
-                    value={accesoApp}
-                    onChange={e => setAccesoApp(e.target.value)}
-                    className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 appearance-none cursor-pointer"
-                  >
-                    <option value="PENDIENTE APP">🟡 PENDIENTE APP</option>
-                    <option value="OK APP">🟢 OK APP</option>
-                  </select>
-                </div>
-
-                {/* Hoko Freight Quotation */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">Transportadoras Hoko</span>
-                    <Button
+                {/* Selector de Método de Envío */}
+                <div className="space-y-2 pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                  <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block">Método de Envío *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
                       type="button"
-                      variant="outline"
-                      disabled={quoting || !customer.city_id}
-                      onClick={handleQuote}
-                      className="h-7 px-3 text-[10px] uppercase font-bold"
+                      onClick={() => setDeliveryMethod('hoko_auto')}
+                      className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all ${
+                        deliveryMethod === 'hoko_auto'
+                          ? 'bg-brand/10 text-brand border-brand/20 shadow-sm'
+                          : 'bg-card text-text-secondary border-slate-200/50 dark:border-slate-800'
+                      }`}
                     >
-                      {quoting ? 'Cotizando...' : 'Cotizar Envío'}
-                    </Button>
+                      Hoko Automático
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryMethod('hoko_manual')}
+                      className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all ${
+                        deliveryMethod === 'hoko_manual'
+                          ? 'bg-brand/10 text-brand border-brand/20 shadow-sm'
+                          : 'bg-card text-text-secondary border-slate-200/50 dark:border-slate-800'
+                      }`}
+                    >
+                      ID Hoko Manual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryMethod('other')}
+                      className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all ${
+                        deliveryMethod === 'other'
+                          ? 'bg-brand/10 text-brand border-brand/20 shadow-sm'
+                          : 'bg-card text-text-secondary border-slate-200/50 dark:border-slate-800'
+                      }`}
+                    >
+                      Otro Canal
+                    </button>
                   </div>
-
-                  {quotations.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-1">
-                      {quotations.map((q, idx) => {
-                        const isSelected = selectedCourier?.courier_id === q.courier_id;
-                        const freightCost = q.price ?? (q as any).value ?? (q as any).freight ?? 0;
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => setSelectedCourier(q)}
-                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${
-                              isSelected
-                                ? 'border-brand bg-brand/5 dark:bg-brand/10 ring-1 ring-brand'
-                                : 'border-slate-200/50 dark:border-slate-800 bg-card hover:bg-hover'
-                            }`}
-                          >
-                            <div>
-                              <span className="text-xs font-black text-text-primary block">{q.courier_name}</span>
-                              <span className="text-[10px] text-text-muted font-medium mt-0.5">Flete y despacho</span>
-                            </div>
-                            <span className="text-xs font-mono font-bold text-success">${Number(freightCost).toLocaleString('es-CO')} COP</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 border border-dashed border-slate-200/60 dark:border-slate-800 rounded-2xl text-[11px] text-text-muted italic">
-                      Presiona \"Cotizar Envío\" para elegir la transportadora.
-                    </div>
-                  )}
                 </div>
+
+                {deliveryMethod === 'hoko_auto' && (
+                  <>
+                    {/* Bodega / Stock de Producto */}
+                    <div>
+                      <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Bodega / Stock de Producto *</label>
+                      <select
+                        value={selectedStockId}
+                        onChange={e => setSelectedStockId(e.target.value)}
+                        className="w-full text-xs font-bold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 appearance-none cursor-pointer"
+                      >
+                        {stocks.map(s => {
+                          const cellar = s.cellar_name || (s.cellar_id === 2353 ? 'FULFILLMENT BOGOTA Telocalizo' : s.cellar_id === 3391 ? 'FULFILLMENT MEDELLIN TELOCALIZO' : `Bodega #${s.cellar_id}`);
+                          return (
+                            <option key={s.id} value={s.id}>
+                              [{cellar}] {s.name} (Disp: {s.amount} u. - Sug: ${Number(s.price_by_unit || 199000).toLocaleString('es-CO')})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    {/* Qty & Custom Price */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Cantidad *</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          value={quantity}
+                          onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="w-full text-xs font-bold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 text-center font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Precio Unitario Personalizado ($) *</label>
+                        <div className="relative mt-1">
+                          <input
+                            type="text"
+                            required
+                            value={customPrice}
+                            onChange={e => setCustomPrice(e.target.value)}
+                            className="w-full text-xs font-black text-brand pl-8 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl focus:outline-none focus:border-brand"
+                            placeholder="Ej. 159.200"
+                          />
+                          <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Method Payment & Declared Value */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Método de Pago *</label>
+                        <select
+                          value={paymentType}
+                          onChange={e => setPaymentType(e.target.value)}
+                          className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 appearance-none cursor-pointer"
+                        >
+                          <option value="pago contra entrega">Contra entrega</option>
+                          <option value="pagado en la tienda">Pago Anticipado / Tienda</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Valor Declarado *</label>
+                        <input
+                          type="number"
+                          required
+                          value={declaredValue}
+                          onChange={e => setDeclaredValue(e.target.value)}
+                          className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Acceso App */}
+                    <div>
+                      <label className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Acceso a Plataforma / App *</label>
+                      <select
+                        value={accesoApp}
+                        onChange={e => setAccesoApp(e.target.value)}
+                        className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand mt-1 appearance-none cursor-pointer"
+                      >
+                        <option value="PENDIENTE APP">🟡 PENDIENTE APP</option>
+                        <option value="OK APP">🟢 OK APP</option>
+                      </select>
+                    </div>
+
+                    {/* Hoko Freight Quotation */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">Transportadoras Hoko</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={quoting || !customer.city_id}
+                          onClick={handleQuote}
+                          className="h-7 px-3 text-[10px] uppercase font-bold"
+                        >
+                          {quoting ? 'Cotizando...' : 'Cotizar Envío'}
+                        </Button>
+                      </div>
+
+                      {quotations.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-1">
+                          {quotations.map((q, idx) => {
+                            const isSelected = selectedCourier?.courier_id === q.courier_id;
+                            const freightCost = q.price ?? (q as any).value ?? (q as any).freight ?? 0;
+                            return (
+                              <div
+                                key={idx}
+                                onClick={() => setSelectedCourier(q)}
+                                className={`p-3.5 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${
+                                  isSelected
+                                    ? 'border-brand bg-brand/5 dark:bg-brand/10 ring-1 ring-brand'
+                                    : 'border-slate-200/50 dark:border-slate-800 bg-card hover:bg-hover'
+                                }`}
+                              >
+                                <div>
+                                  <span className="text-xs font-black text-text-primary block">{q.courier_name}</span>
+                                  <span className="text-[10px] text-text-muted font-medium mt-0.5">Flete y despacho</span>
+                                </div>
+                                <span className="text-xs font-mono font-bold text-success">${Number(freightCost).toLocaleString('es-CO')} COP</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 border border-dashed border-slate-200/60 dark:border-slate-800 rounded-2xl text-[11px] text-text-muted italic">
+                          Presiona "Cotizar Envío" para elegir la transportadora.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {deliveryMethod === 'hoko_manual' && (
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block">ID de Orden Hoko Manual *</label>
+                    <input
+                      type="text"
+                      required={deliveryMethod === 'hoko_manual'}
+                      value={manualHokoId}
+                      onChange={e => setManualHokoId(e.target.value)}
+                      placeholder="Ingresa el ID de la orden en Hoko..."
+                      className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                )}
+
+                {deliveryMethod === 'other' && (
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block">Especificar Canal / Medio de Envío *</label>
+                    <input
+                      type="text"
+                      required={deliveryMethod === 'other'}
+                      value={otherCourierName}
+                      onChange={e => setOtherCourierName(e.target.value)}
+                      placeholder="Ej. Servientrega Manual, Enviar por Coordinadora, Motomensajero..."
+                      className="w-full text-xs font-semibold text-text-primary bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-slate-800/80 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                )}
 
               </div>
             )}
@@ -801,7 +956,12 @@ export function CreateManualOrderModal({ isOpen, onClose, onSuccess }: CreateMan
                 <Button
                   type="button"
                   variant="primary"
-                  disabled={submitting || !selectedCourier}
+                  disabled={
+                    submitting ||
+                    (deliveryMethod === 'hoko_auto' && !selectedCourier) ||
+                    (deliveryMethod === 'hoko_manual' && !manualHokoId.trim()) ||
+                    (deliveryMethod === 'other' && !otherCourierName.trim())
+                  }
                   onClick={handleSubmit}
                   className="h-10 px-7 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
                 >

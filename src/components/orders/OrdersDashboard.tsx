@@ -6,7 +6,7 @@ import { Badge } from '../shared/Badge';
 import { Button } from '../shared/Button';
 import { ExportDropdown } from '../shared/ExportDropdown';
 import { exportToCSV, exportToXML } from '../../utils/exportUtils';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CreateManualOrderModal } from './CreateManualOrderModal';
 import Swal from 'sweetalert2';
 
@@ -18,10 +18,19 @@ type OrderStatus = 'ACTIVE' | 'CANCELLED' | 'VOIDED' | 'ALL';
 
 export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q !== null) {
+      setSearchQuery(q);
+    }
+  }, [searchParams]);
+
   const [showFilters, setShowFilters] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [updatingAppStatus, setUpdatingAppStatus] = useState<any | null>(null);

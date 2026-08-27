@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  logger.info('=== INICIO POST /api/pedidos (CREAR MANUAL) ===');
+  logger.info('=== INICIO POST /api/pedidos (REGISTRO/CONFIRMACIÓN DE VENTA) ===');
   try {
     const body = await request.json();
     const {
@@ -196,75 +196,115 @@ export async function POST(request: NextRequest) {
       courier_name,
       payment_type,
       total_paid,
-      declared_value = '100000',
-      acceso_app = 'PENDIENTE APP'
+      declared_value = '10000',
+      acceso_app = 'PENDIENTE APP',
+      pedido_id,
+      delivery_method = 'hoko_auto',
+      manual_hoko_id,
+      other_courier_name
     } = body;
 
     // Validation
-    if (!customer?.name || !customer?.phone || !customer?.address || !customer?.city_id || !stock_id || !quantity || !courier_id) {
+    if (!customer?.name || !customer?.phone || !customer?.address || !stock_id || !quantity) {
       logger.warn('POST /api/pedidos llamado con campos incompletos');
       return NextResponse.json({ error: 'Faltan campos obligatorios para registrar el pedido' }, { status: 400 });
     }
 
-    // 1. Create Hoko order first
-    logger.info('Registrando orden en Hoko...');
-    const customerPayload = {
-      name: customer.name,
-      email: customer.email || 'cliente@correo.com',
-      identification: customer.identification || '12345678',
-      phone: customer.phone,
-      address: customer.address,
-      city_id: String(customer.city_id)
-    };
-    logger.info('Customer payload enviado a Hoko:', customerPayload);
-    const hokoFormData = new FormData();
-    hokoFormData.append('customer', JSON.stringify(customerPayload));
-    hokoFormData.append('stocks', JSON.stringify({
-      [String(stock_id)]: {
-        amount: Number(quantity),
-        price: Number(price_by_unit)
-      }
-    }));
-    // Hoko payment: 0 = Contraentrega/Recaudo, 1 = Pago anticipado/Crédito
-    const hokoPaymentVal = payment_type === 'pago contra entrega' ? '0' : '1';
-    hokoFormData.append('payment', hokoPaymentVal);
-    hokoFormData.append('courier_id', String(courier_id));
-    hokoFormData.append('contain', 'Accesorio localizador');
-    hokoFormData.append('measures', JSON.stringify({
-      height: "10",
-      width: "10",
-      length: "10",
-      weight: "1"
-    }));
-    hokoFormData.append('declared_value', String(declared_value));
-
-    const hokoUrl = `${HOKO_BASE}/member/order/create`;
-    logger.info(`Llamando endpoint Hoko: ${hokoUrl}`);
-    const hokoRes = await fetch(hokoUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${HOKO_TOKEN}`,
-        Accept: 'application/json'
-      },
-      body: hokoFormData
-    });
-
-    if (!hokoRes.ok) {
-      const errText = await hokoRes.text();
-      logger.error('Error de red al llamar a Hoko:', errText);
-      return NextResponse.json({ error: `Hoko Error: ${errText}` }, { status: hokoRes.status });
+    if (delivery_method === 'hoko_auto' && (!customer?.city_id || !courier_id)) {
+      logger.warn('POST /api/pedidos: Hoko automático requiere ciudad y transportadora');
+      return NextResponse.json({ error: 'Faltan ciudad o transportadora para el envío por Hoko' }, { status: 400 });
     }
 
-    const hokoData = await hokoRes.json();
-    logger.info('Respuesta de creación en Hoko:', hokoData);
+    if (delivery_method === 'hoko_manual' && !manual_hoko_id) {
+      logger.warn('POST /api/pedidos: Hoko manual requiere el ID de orden');
+      return NextResponse.json({ error: 'Debes ingresar el ID de orden de Hoko manual' }, { status: 400 });
+    }
 
-    const hokoOrderResult = hokoData.data || hokoData;
-    const hokoOrderId = hokoOrderResult.id || hokoData.order_id;
-    const hokoStoreId = hokoOrderResult.cellar_id || hokoData.store_id || 23789;
+    if (delivery_method === 'other' && !other_courier_name) {
+      logger.warn('POST /api/pedidos: Otro canal requiere especificar el medio de envío');
+      return NextResponse.json({ error: 'Debes especificar por qué canal o transportadora se realiza el envío' }, { status: 400 });
+    }
 
-    if (hokoData.error || !hokoOrderId) {
-      logger.error('Error devuelto por Hoko:', hokoData.error || hokoData);
-      return NextResponse.json({ error: hokoData.error || 'No se pudo crear la orden en Hoko' }, { status: 400 });
+    let hokoOrderId: any = null;
+    let hokoStoreId: any = 23789; // Default store id
+    let finalCourierName = '';
+    let finalCourierId: any = null;
+
+    if (delivery_method === 'hoko_auto') {
+      // 1. Create Hoko order automatically
+      logger.info('Registrando orden en Hoko automáticamente...');
+      const customerPayload = {
+        name: customer.name,
+        email: customer.email || 'cliente@correo.com',
+        identification: customer.identification || '12345678',
+        phone: customer.phone,
+        address: customer.address,
+        city_id: String(customer.city_id)
+      };
+      logger.info('Customer payload enviado a Hoko:', customerPayload);
+      const hokoFormData = new FormData();
+      hokoFormData.append('customer', JSON.stringify(customerPayload));
+      hokoFormData.append('stocks', JSON.stringify({
+        [String(stock_id)]: {
+          amount: Number(quantity),
+          price: Number(price_by_unit)
+        }
+      }));
+      // Hoko payment: 0 = Contraentrega/Recaudo, 1 = Pago anticipado/Crédito
+      const hokoPaymentVal = payment_type === 'pago contra entrega' ? '0' : '1';
+      hokoFormData.append('payment', hokoPaymentVal);
+      hokoFormData.append('courier_id', String(courier_id));
+      hokoFormData.append('contain', 'Accesorio localizador');
+      hokoFormData.append('measures', JSON.stringify({
+        height: "10",
+        width: "10",
+        length: "10",
+        weight: "1"
+      }));
+      hokoFormData.append('declared_value', String(declared_value));
+
+      const hokoUrl = `${HOKO_BASE}/member/order/create`;
+      logger.info(`Llamando endpoint Hoko: ${hokoUrl}`);
+      const hokoRes = await fetch(hokoUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${HOKO_TOKEN}`,
+          Accept: 'application/json'
+        },
+        body: hokoFormData
+      });
+
+      if (!hokoRes.ok) {
+        const errText = await hokoRes.text();
+        logger.error('Error de red al llamar a Hoko:', errText);
+        return NextResponse.json({ error: `Hoko Error: ${errText}` }, { status: hokoRes.status });
+      }
+
+      const hokoData = await hokoRes.json();
+      logger.info('Respuesta de creación en Hoko:', hokoData);
+
+      const hokoOrderResult = hokoData.data || hokoData;
+      hokoOrderId = hokoOrderResult.id || hokoData.order_id;
+      hokoStoreId = hokoOrderResult.cellar_id || hokoData.store_id || 23789;
+
+      if (hokoData.error || !hokoOrderId) {
+        logger.error('Error devuelto por Hoko:', hokoData.error || hokoData);
+        return NextResponse.json({ error: hokoData.error || 'No se pudo crear la orden en Hoko' }, { status: 400 });
+      }
+
+      finalCourierId = Number(courier_id);
+      finalCourierName = courier_name;
+
+    } else if (delivery_method === 'hoko_manual') {
+      logger.info(`Asociando ID de Hoko ingresado manualmente: ${manual_hoko_id}`);
+      hokoOrderId = String(manual_hoko_id);
+      finalCourierName = 'Hoko Manual';
+      finalCourierId = null;
+    } else if (delivery_method === 'other') {
+      logger.info(`Registrando envío por otro canal/transportadora: ${other_courier_name}`);
+      hokoOrderId = null;
+      finalCourierName = String(other_courier_name);
+      finalCourierId = null;
     }
 
     // 2. Database client lookup / insertion
@@ -319,34 +359,68 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Insert order in local database
-    logger.info('Registrando pedido en Supabase...');
-    const { data: newOrder, error: orderInsertError } = await supabase
-      .from('pedidos')
-      .insert({
-        cliente_id,
-        hoko_order_id: hokoOrderId,
-        hoko_store_id: hokoStoreId,
-        quantity: Number(quantity),
-        stock_id: Number(stock_id),
-        courier_id: Number(courier_id),
-        courier_name: courier_name,
-        payment_type: payment_type,
-        total_paid: Number(total_paid),
-        acceso_app: acceso_app,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    // 3. Insert or Update order in local database
+    let orderResult = null;
+    if (pedido_id) {
+      logger.info(`Actualizando pedido existente por confirmar ID local: ${pedido_id}`);
+      const { data: updatedOrder, error: orderUpdateError } = await supabase
+        .from('pedidos')
+        .update({
+          cliente_id,
+          hoko_order_id: hokoOrderId,
+          hoko_store_id: hokoStoreId,
+          quantity: Number(quantity),
+          stock_id: Number(stock_id),
+          courier_id: finalCourierId,
+          courier_name: finalCourierName,
+          payment_type: payment_type,
+          total_paid: Number(total_paid),
+          acceso_app: acceso_app,
+          status: 'COMFIRMADO',
+          confirmed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', pedido_id)
+        .select()
+        .single();
 
-    if (orderInsertError) {
-      logger.error('Error insertando pedido en Supabase:', orderInsertError);
-      return NextResponse.json({ error: orderInsertError.message }, { status: 500 });
+      if (orderUpdateError) {
+        logger.error(`Error al actualizar pedido ID ${pedido_id} en Supabase:`, orderUpdateError);
+        return NextResponse.json({ error: orderUpdateError.message }, { status: 500 });
+      }
+      orderResult = updatedOrder;
+      logger.info(`Pedido ID local ${pedido_id} confirmado y actualizado exitosamente`);
+    } else {
+      logger.info('Registrando nuevo pedido en Supabase...');
+      const { data: newOrder, error: orderInsertError } = await supabase
+        .from('pedidos')
+        .insert({
+          cliente_id,
+          hoko_order_id: hokoOrderId,
+          hoko_store_id: hokoStoreId,
+          quantity: Number(quantity),
+          stock_id: Number(stock_id),
+          courier_id: finalCourierId,
+          courier_name: finalCourierName,
+          payment_type: payment_type,
+          total_paid: Number(total_paid),
+          acceso_app: acceso_app,
+          status: 'COMFIRMADO',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (orderInsertError) {
+        logger.error('Error insertando pedido en Supabase:', orderInsertError);
+        return NextResponse.json({ error: orderInsertError.message }, { status: 500 });
+      }
+      orderResult = newOrder;
+      logger.info(`Pedido creado exitosamente con ID local ${newOrder.id} y Hoko ID ${hokoOrderId}`);
     }
 
-    logger.info(`Pedido creado exitosamente con ID local ${newOrder.id} y Hoko ID ${hokoOrderId}`);
-    return NextResponse.json({ success: true, order: newOrder });
+    return NextResponse.json({ success: true, order: orderResult });
 
   } catch (error: any) {
     logger.error('Excepción en POST /api/pedidos:', { message: error.message, stack: error.stack });

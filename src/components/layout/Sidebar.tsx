@@ -183,15 +183,15 @@ export function Sidebar({ activeTab }: { activeTab?: string }) {
             <div className="flex items-center gap-2 animate-in fade-in duration-300">
                <img 
                  src="/icono-fabrica-winners-sin-fondo.png" 
-                 alt="Telocalizo Chats Icon" 
+                 alt="Pedidos Telocalizo Icon" 
                  className="w-8 h-8 object-contain"
                />
-                <h1 className="text-[13px] font-black text-white tracking-tight uppercase italic">Telocalizo<span className="text-brand-light">Chats</span></h1>
+                <h1 className="text-[13px] font-black text-white tracking-tight uppercase italic">Pedidos<span className="text-brand-light">Telocalizo</span></h1>
             </div>
          ) : (
             <img 
               src="/icono-fabrica-winners-sin-fondo.png" 
-              alt="Telocalizo Chats Icon" 
+              alt="Pedidos Telocalizo Icon" 
               className="w-8 h-8 object-contain mx-auto"
             />
          )}

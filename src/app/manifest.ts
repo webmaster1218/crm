@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Telocalizo Chats',
-    short_name: 'Telocalizo Chats',
-    description: 'Sistema de gestión de clientes y pedidos - Telocalizo Chats',
+    name: 'Pedidos Telocalizo',
+    short_name: 'Pedidos Telocalizo',
+    description: 'Sistema de gestión de clientes y pedidos - Pedidos Telocalizo',
     start_url: '/dashboard',
     display: 'standalone',
     background_color: '#020617',

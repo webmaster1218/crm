@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useApp } from '../../context/AppContext';
 import { 
   Sun, 
@@ -31,8 +31,34 @@ import { supabase } from '../../lib/supabaseClient';
 export function Header({ activeTab }: { activeTab?: string }) {
   const { state, dispatch } = useApp();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const [globalSearch, setGlobalSearch] = useState('');
+
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q !== null) {
+      setGlobalSearch(q);
+    } else {
+      setGlobalSearch('');
+    }
+  }, [searchParams]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const queryStr = globalSearch.trim() ? `?search=${encodeURIComponent(globalSearch.trim())}` : '';
+    if (pathname.includes('/clientes')) {
+      router.push(`/clientes${queryStr}`);
+    } else if (pathname.includes('/pedidos/confirmar')) {
+      router.push(`/pedidos/confirmar${queryStr}`);
+    } else {
+      router.push(`/pedidos${queryStr}`);
+    }
+  };
 
   const handleNav = (id: string) => {
     const path = routeMap[id];
@@ -62,19 +88,21 @@ export function Header({ activeTab }: { activeTab?: string }) {
     <header className="h-14 bg-header sticky top-0 z-30 border-b border-white/10 flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-4 flex-1">
         <h2 className="text-[10px] font-black text-white/60 uppercase tracking-[0.25em] flex items-center gap-2">
-          Telocalizo Chats <span className="opacity-30">/</span> <span className="text-white italic tracking-tighter lowercase text-xs underline decoration-brand-light decoration-2 underline-offset-4">{activeTab}</span>
+          Pedidos Telocalizo <span className="opacity-30">/</span> <span className="text-white italic tracking-tighter lowercase text-xs underline decoration-brand-light decoration-2 underline-offset-4">{activeTab}</span>
         </h2>
 
-        <div className="relative w-full max-w-sm group hidden xl:block">
+        <form onSubmit={handleSearchSubmit} className="relative w-full max-w-sm group hidden xl:block">
           <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none group-focus-within:text-brand-light text-white/40 transition-colors">
             <Search size={14} />
           </div>
           <input
             type="text"
+            value={globalSearch}
+            onChange={e => setGlobalSearch(e.target.value)}
             className="block w-full pl-8 pr-3 py-1.5 bg-white/10 border border-white/10 focus:border-brand-light/40 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white/15 transition-all text-[11px] font-bold text-white placeholder:text-white/40"
-            placeholder="Búsqueda rápida... (⌘K)"
+            placeholder="Buscar por ID, cliente, teléfono... (Enter)"
           />
-        </div>
+        </form>
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
