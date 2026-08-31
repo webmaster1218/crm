@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, RefreshCw, ShoppingBag, MapPin, User, Mail, Phone, Calendar, Clipboard, CreditCard, Box, Tag, Clock, RotateCcw, Receipt, Globe, Hash, Truck } from 'lucide-react';
 import { Button } from '../shared/Button';
+import Swal from 'sweetalert2';
+import { CreateManualOrderModal } from './CreateManualOrderModal';
 
 import { useRouter } from 'next/navigation';
 
@@ -19,6 +21,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
   const [fulfilling, setFulfilling] = useState(false);
   const [paying, setPaying] = useState(false);
   const [activeSection, setActiveSection] = useState<'items' | 'customer' | 'payment' | 'notes'>('items');
+  const [showCreateModal, setShowCreateModal] = useState(false);
   
   // Note states (Shopify only)
   const [editingNote, setEditingNote] = useState(false);
@@ -87,7 +90,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         return;
       }
       
-      const isShopify = localOrder.canal === 'pagina_web';
+      const isShopify = localOrder.canal === 'pagina_web' || !!localOrder.shopify_order_id;
       
       if (isShopify && localOrder.shopify_order_id) {
         // Fetch additional details from Shopify API
@@ -216,6 +219,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         displayFulfillmentStatus: localOrder.displayFulfillmentStatus || (localOrder.delivery_state === '4' ? 'FULFILLED' : (localOrder.delivery_state === '2' || localOrder.delivery_state === '3' ? 'PARTIALLY_FULFILLED' : 'UNFULFILLED')),
         tags: localOrder.tags || [],
         note: localOrder.note || 'Pedido de Chat',
+        status: localOrder.status,
         totalPriceSet: {
           presentmentMoney: {
             amount: String(localOrder.total_paid || 0),
@@ -527,12 +531,25 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     }
   };
 
-  const getFulfillmentStatusLabel = (status: string) => {
+  const getFulfillmentStatusLabel = (order: any) => {
+    // Prioritize Hoko delivery state if present
+    const hokoState = String(order.delivery_state || '');
+    if (hokoState === '4') {
+      return { text: 'Preparado', class: 'bg-success-bg text-success' };
+    }
+    if (hokoState === '2' || hokoState === '3') {
+      return { text: 'Parcialmente preparado', class: 'bg-info-bg text-info' };
+    }
+    if (hokoState === '5') {
+      return { text: 'Cancelado', class: 'bg-danger-bg text-danger' };
+    }
+
+    const status = order.displayFulfillmentStatus;
     switch (status) {
       case 'UNFULFILLED': return { text: 'No preparado', class: 'bg-warning-bg text-warning' };
       case 'FULFILLED': return { text: 'Preparado', class: 'bg-success-bg text-success' };
       case 'PARTIALLY_FULFILLED': return { text: 'Parcialmente preparado', class: 'bg-info-bg text-info' };
-      default: return { text: status, class: 'bg-card-alt text-text-muted' };
+      default: return { text: status || 'No preparado', class: 'bg-card-alt text-text-muted' };
     }
   };
 
@@ -577,9 +594,9 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
     );
   }
 
-  const isShopify = order.canal === 'pagina_web';
+  const isShopify = order.canal === 'pagina_web' || !!order.shopify_order_id;
   const payment = getFinancialStatusLabel(order.displayFinancialStatus);
-  const fulfillment = getFulfillmentStatusLabel(order.displayFulfillmentStatus);
+  const fulfillment = getFulfillmentStatusLabel(order);
   const totalItems = order.lineItems?.edges?.reduce((sum: number, edge: any) => sum + (edge.node.quantity || 1), 0) || 1;
 
   const total = formatPrice(order.totalPriceSet?.presentmentMoney?.amount);
@@ -654,7 +671,85 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 <p className="text-3xl font-black text-white">{total}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {isShopify && order.displayFulfillmentStatus === 'UNFULFILLED' && (
+                {order.status === 'ESPERANDO_COMFIRMACION' && (
+                  <>
+                    <Button
+                      variant="primary"
+                      onClick={() => setShowCreateModal(true)}
+                      className="h-9 text-[11px] font-black uppercase tracking-wide bg-brand border-0 text-white"
+                    >
+                      Confirmar Pedido
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+                        const confirm = await Swal.fire({
+                          title: '¿Archivar pedido?',
+                          text: 'El pedido se marcará como archivado/cancelado y no aparecerá en la lista de espera.',
+                          icon: 'warning',
+                          showCancelButton: true,
+                          confirmButtonText: 'Sí, archivar',
+                          cancelButtonText: 'Cancelar',
+                          confirmButtonColor: '#ef4444',
+                          cancelButtonColor: '#374151',
+                          background: isDark ? '#1e293b' : '#ffffff',
+                          color: isDark ? '#f8fafc' : '#0f172a',
+                          customClass: {
+                            popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+                          }
+                        });
+
+                        if (!confirm.isConfirmed) return;
+
+                        try {
+                          const res = await fetch('/api/pedidos/confirmar', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: order.db_id, status: 'ARCHIVADO' })
+                          });
+                          
+                          const data = await res.json();
+                          if (!res.ok || data.error) {
+                            throw new Error(data.error || 'Error al archivar el pedido.');
+                          }
+                          
+                          Swal.fire({
+                            title: 'Pedido Archivado',
+                            text: 'El pedido ha sido archivado exitosamente.',
+                            icon: 'success',
+                            timer: 1500,
+                            showConfirmButton: false,
+                            background: isDark ? '#1e293b' : '#ffffff',
+                            color: isDark ? '#f8fafc' : '#0f172a',
+                            customClass: {
+                              popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+                            }
+                          });
+
+                          fetchOrderDetails();
+                        } catch (e: any) {
+                          Swal.fire({
+                            title: 'Error',
+                            text: e.message || 'Error al archivar el pedido.',
+                            icon: 'error',
+                            confirmButtonText: 'Aceptar',
+                            confirmButtonColor: '#ef4444',
+                            background: isDark ? '#1e293b' : '#ffffff',
+                            color: isDark ? '#f8fafc' : '#0f172a',
+                            customClass: {
+                              popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+                            }
+                          });
+                        }
+                      }}
+                      className="h-9 text-[11px] font-black uppercase tracking-wide border-rose-500/30 text-rose-500 hover:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/40"
+                    >
+                      Archivar
+                    </Button>
+                  </>
+                )}
+                {isShopify && order.displayFulfillmentStatus === 'UNFULFILLED' && order.status !== 'ESPERANDO_COMFIRMACION' && (
                   <Button
                     variant="primary"
                     onClick={handleFulfill}
@@ -664,7 +759,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     {fulfilling ? 'Preparando...' : 'Solicitar Preparación'}
                   </Button>
                 )}
-                {isShopify && order.displayFinancialStatus === 'PENDING' && (
+                {isShopify && order.displayFinancialStatus === 'PENDING' && order.status !== 'ESPERANDO_COMFIRMACION' && (
                   <Button
                     variant="outline"
                     onClick={handleMarkAsPaid}
@@ -1051,6 +1146,27 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
           )}
         </div>
       </div>
+
+      {order && (
+        <CreateManualOrderModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            fetchOrderDetails();
+          }}
+          prefilledOrder={{
+            id: order.db_id,
+            name: order.customer?.name || `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim(),
+            email: order.customer?.email || '',
+            phone: order.customer?.phone || '',
+            address: order.shippingAddress?.address1 || '',
+            city: order.shippingAddress?.city || '',
+            quantity: totalItems || 1,
+            metodo_pago: order.paymentGatewayNames?.[0] || 'cod'
+          }}
+        />
+      )}
     </div>
   );
 }

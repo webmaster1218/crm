@@ -431,6 +431,49 @@ export function Dashboard() {
               </select>
             </div>
             <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Rango Rápido</label>
+              <select
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const today = new Date();
+                  let from = '';
+                  let to = today.toISOString().split('T')[0];
+
+                  if (val === 'today') {
+                    from = today.toISOString().split('T')[0];
+                  } else if (val === '3days') {
+                    const d = new Date();
+                    d.setDate(today.getDate() - 2);
+                    from = d.toISOString().split('T')[0];
+                  } else if (val === 'week') {
+                    const d = new Date();
+                    d.setDate(today.getDate() - 7);
+                    from = d.toISOString().split('T')[0];
+                  } else if (val === 'month') {
+                    const d = new Date(today.getFullYear(), today.getMonth(), 1);
+                    from = d.toISOString().split('T')[0];
+                  } else if (val === 'year') {
+                    const d = new Date(today.getFullYear(), 0, 1);
+                    from = d.toISOString().split('T')[0];
+                  }
+
+                  setFilters(f => ({
+                    ...f,
+                    dateFrom: from,
+                    dateTo: to
+                  }));
+                }}
+                className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary cursor-pointer"
+              >
+                <option value="custom">Personalizado</option>
+                <option value="today">Hoy</option>
+                <option value="3days">Últimos 3 días</option>
+                <option value="week">Últimos 7 días</option>
+                <option value="month">Este mes</option>
+                <option value="year">Este año</option>
+              </select>
+            </div>
+            <div>
               <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Desde</label>
               <input
                 type="date"

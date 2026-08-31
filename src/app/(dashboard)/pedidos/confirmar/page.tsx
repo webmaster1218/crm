@@ -24,7 +24,7 @@ interface PedidoPorConfirmar {
   city: string;
   quantity: number;
   metodo_pago: string;
-  status: 'COMFIRMADO' | 'ESPERANDO_COMFIRMACION';
+  status: 'COMFIRMADO' | 'ESPERANDO_COMFIRMACION' | 'ARCHIVADO';
   confirmed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -45,7 +45,7 @@ export default function PedidosConfirmarPage() {
     }
   }, [searchParams]);
 
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ESPERANDO_COMFIRMACION' | 'COMFIRMADO'>('ESPERANDO_COMFIRMACION');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ESPERANDO_COMFIRMACION' | 'COMFIRMADO' | 'ARCHIVADO'>('ESPERANDO_COMFIRMACION');
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
   
   // Create sale modal states
@@ -71,21 +71,16 @@ export default function PedidosConfirmarPage() {
     fetchPedidos();
   }, []);
 
-  const handleConfirmOrder = async (id: number) => {
+  const handleArchiveOrder = async (id: number) => {
     const isDark = document.documentElement.classList.contains('dark');
-    
-    // Step 1: Ask if it's Hoko or another shipping method
-    const routeChoice = await Swal.fire({
-      title: 'Confirmar Pedido',
-      text: '¿Cómo se enviará este pedido?',
-      icon: 'question',
+    const confirm = await Swal.fire({
+      title: '¿Archivar pedido?',
+      text: 'El pedido se marcará como archivado/cancelado y no aparecerá en la lista de espera.',
+      icon: 'warning',
       showCancelButton: true,
-      showDenyButton: true,
-      confirmButtonText: 'Por Hoko',
-      denyButtonText: 'Otro canal',
+      confirmButtonText: 'Sí, archivar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#10b981',
-      denyButtonColor: '#3b82f6',
+      confirmButtonColor: '#ef4444',
       cancelButtonColor: '#374151',
       background: isDark ? '#1e293b' : '#ffffff',
       color: isDark ? '#f8fafc' : '#0f172a',
@@ -94,88 +89,31 @@ export default function PedidosConfirmarPage() {
       }
     });
 
-    if (routeChoice.isDismissed) return;
-
-    let hoko_order_id = null;
-    let courier_name = null;
-
-    if (routeChoice.isConfirmed) {
-      // User chose Hoko: ask for Hoko Order ID
-      const hokoPrompt = await Swal.fire({
-        title: 'ID de Orden Hoko',
-        input: 'text',
-        inputLabel: 'Ingresa el ID de la orden en Hoko para este pedido:',
-        inputPlaceholder: 'ID de la orden Hoko',
-        showCancelButton: true,
-        confirmButtonText: 'Confirmar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#10b981',
-        cancelButtonColor: '#374151',
-        background: isDark ? '#1e293b' : '#ffffff',
-        color: isDark ? '#f8fafc' : '#0f172a',
-        inputValidator: (value) => {
-          if (!value) {
-            return '¡Es obligatorio ingresar el ID de orden de Hoko!';
-          }
-        },
-        customClass: {
-          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-        }
-      });
-
-      if (!hokoPrompt.isConfirmed) return;
-      hoko_order_id = hokoPrompt.value;
-    } else if (routeChoice.isDenied) {
-      // User chose Other: ask to specify courier/method
-      const otherPrompt = await Swal.fire({
-        title: 'Especificar Canal de Envío',
-        input: 'text',
-        inputLabel: '¿Por qué medio/canal se enviará este pedido?',
-        inputPlaceholder: 'Ej. Servientrega Manual, Enviar por Coordinadora, Motomensajero...',
-        showCancelButton: true,
-        confirmButtonText: 'Confirmar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#10b981',
-        cancelButtonColor: '#374151',
-        background: isDark ? '#1e293b' : '#ffffff',
-        color: isDark ? '#f8fafc' : '#0f172a',
-        inputValidator: (value) => {
-          if (!value) {
-            return '¡Es obligatorio especificar por dónde se envía el pedido!';
-          }
-        },
-        customClass: {
-          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-        }
-      });
-
-      if (!otherPrompt.isConfirmed) return;
-      courier_name = otherPrompt.value;
-    }
+    if (!confirm.isConfirmed) return;
 
     setActionLoadingId(id);
     try {
       const res = await fetch('/api/pedidos/confirmar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, hoko_order_id, courier_name })
+        body: JSON.stringify({ id, status: 'ARCHIVADO' })
       });
       
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Error al confirmar el pedido.');
+        throw new Error(data.error || 'Error al archivar el pedido.');
       }
       
       // Update local state
       setPedidos(prev => 
-        prev.map(p => p.id === id ? { ...p, status: 'COMFIRMADO', confirmed_at: new Date().toISOString() } : p)
+        prev.map(p => p.id === id ? { ...p, status: 'ARCHIVADO' } : p)
       );
       
       Swal.fire({
-        title: 'Pedido Confirmado',
-        text: 'El pedido ha sido marcado como confirmado exitosamente.',
+        title: 'Pedido Archivado',
+        text: 'El pedido ha sido archivado exitosamente.',
         icon: 'success',
-        timer: 2000,
+        timer: 1500,
         showConfirmButton: false,
         background: isDark ? '#1e293b' : '#ffffff',
         color: isDark ? '#f8fafc' : '#0f172a',
@@ -186,7 +124,7 @@ export default function PedidosConfirmarPage() {
     } catch (e: any) {
       Swal.fire({
         title: 'Error',
-        text: e.message || 'Error al confirmar el pedido.',
+        text: e.message || 'Error al archivar el pedido.',
         icon: 'error',
         confirmButtonText: 'Aceptar',
         confirmButtonColor: '#ef4444',
@@ -210,7 +148,11 @@ export default function PedidosConfirmarPage() {
       String(p.city || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     // Status filter
-    const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
+    // ALL filter should show everything EXCEPT archived/cancelled orders to keep dashboard clean
+    const matchesStatus = 
+      statusFilter === 'ALL' 
+        ? p.status !== 'ARCHIVADO' 
+        : p.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -229,6 +171,14 @@ export default function PedidosConfirmarPage() {
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
           <CheckCircle2 size={10} />
           Confirmado
+        </span>
+      );
+    }
+    if (status === 'ARCHIVADO') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+          <AlertCircle size={10} />
+          Archivado
         </span>
       );
     }
@@ -327,13 +277,13 @@ export default function PedidosConfirmarPage() {
       </div>
 
       {/* Metrics Card */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-card p-5 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-brand/10 text-brand rounded-xl">
             <ShoppingCart size={18} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Pendientes de Confirmar</p>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Pendientes</p>
             <span className="text-base font-black text-amber-500">
               {pedidos.filter(p => p.status === 'ESPERANDO_COMFIRMACION').length}
             </span>
@@ -344,9 +294,20 @@ export default function PedidosConfirmarPage() {
             <CheckCircle2 size={18} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Confirmados en esta lista</p>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Confirmados</p>
             <span className="text-base font-black text-emerald-500">
               {pedidos.filter(p => p.status === 'COMFIRMADO').length}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-rose-500/10 text-rose-500 rounded-xl">
+            <AlertCircle size={18} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Archivados</p>
+            <span className="text-base font-black text-rose-500">
+              {pedidos.filter(p => p.status === 'ARCHIVADO').length}
             </span>
           </div>
         </div>
@@ -355,7 +316,7 @@ export default function PedidosConfirmarPage() {
             <ClipboardCheck size={18} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Total Registrados</p>
+            <p className="text-[10px] font-black text-text-muted uppercase tracking-wider">Total</p>
             <span className="text-base font-black text-text-primary">{pedidos.length}</span>
           </div>
         </div>
@@ -385,6 +346,16 @@ export default function PedidosConfirmarPage() {
             }`}
           >
             Confirmados ({pedidos.filter(p => p.status === 'COMFIRMADO').length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('ARCHIVADO')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+              statusFilter === 'ARCHIVADO' 
+                ? 'bg-white dark:bg-slate-800 shadow-sm text-brand' 
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            Archivados ({pedidos.filter(p => p.status === 'ARCHIVADO').length})
           </button>
           <button
             onClick={() => setStatusFilter('ALL')}
@@ -492,16 +463,30 @@ export default function PedidosConfirmarPage() {
                     </td>
                     <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                       {pedido.status === 'ESPERANDO_COMFIRMACION' ? (
-                        <Button
-                          variant="primary"
-                          onClick={() => {
-                            setSelectedPedidoPrefill(pedido);
-                            setShowCreateModal(true);
-                          }}
-                          className="h-7 px-3 text-[10px] font-black uppercase rounded-lg shadow-sm"
-                        >
-                          Confirmar
-                        </Button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Button
+                            variant="primary"
+                            onClick={() => {
+                              setSelectedPedidoPrefill(pedido);
+                              setShowCreateModal(true);
+                            }}
+                            className="h-7 px-2.5 text-[10px] font-black uppercase rounded-lg shadow-sm"
+                          >
+                            Confirmar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleArchiveOrder(pedido.id)}
+                            className="h-7 px-2 text-[10px] font-black uppercase rounded-lg border-rose-500/20 hover:bg-rose-500/10 text-rose-500 dark:border-rose-500/30 dark:hover:bg-rose-500/20"
+                            disabled={actionLoadingId === pedido.id}
+                          >
+                            Archivar
+                          </Button>
+                        </div>
+                      ) : pedido.status === 'ARCHIVADO' ? (
+                        <div className="text-[10px] text-rose-600 dark:text-rose-400 font-bold whitespace-nowrap">
+                          Archivado
+                        </div>
                       ) : (
                         <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">
                           {pedido.confirmed_at ? formatDate(pedido.confirmed_at) : 'Confirmado'}

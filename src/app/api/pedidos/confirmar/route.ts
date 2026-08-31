@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         phone: p.clientes?.telefono || '',
         address: p.clientes?.direccion || '',
         city: p.clientes?.ciudad || '',
-        quantity: p.quantity || 1,
+        quantity: p.items?.[0]?.quantity || p.quantity || 1,
         metodo_pago: p.payment_type || 'pending',
         status: p.status,
         confirmed_at: p.confirmed_at,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   logger.info('=== INICIO POST /api/pedidos/confirmar ===');
   try {
     const body = await request.json();
-    const { id, hoko_order_id, courier_name } = body;
+    const { id, hoko_order_id, courier_name, status = 'COMFIRMADO' } = body;
     
     if (!id) {
       logger.warn('POST /api/pedidos/confirmar llamado sin ID');
@@ -71,11 +71,11 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    logger.info(`Confirmando pedido ID: ${id} en tabla pedidos de Supabase...`);
+    logger.info(`Actualizando pedido ID: ${id} con estado ${status} en tabla pedidos de Supabase...`);
     
     const updateData: any = {
-      status: 'COMFIRMADO',
-      confirmed_at: new Date().toISOString(),
+      status: status,
+      confirmed_at: status === 'COMFIRMADO' ? new Date().toISOString() : null,
       updated_at: new Date().toISOString()
     };
 

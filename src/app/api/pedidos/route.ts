@@ -23,7 +23,14 @@ export async function GET(request: NextRequest) {
       .select('*, clientes(*)');
       
     if (orderIdParam) {
-      dbQuery = dbQuery.eq('id', orderIdParam);
+      if (orderIdParam.startsWith('gid://shopify/Order/')) {
+        const shopifyId = orderIdParam.replace('gid://shopify/Order/', '');
+        dbQuery = dbQuery.eq('shopify_order_id', shopifyId);
+      } else if (/^\d+$/.test(orderIdParam) && orderIdParam.length > 8) {
+        dbQuery = dbQuery.eq('shopify_order_id', orderIdParam);
+      } else {
+        dbQuery = dbQuery.eq('id', orderIdParam);
+      }
     } else {
       const statusParam = urlParams.get('status');
       if (statusParam) {
@@ -57,7 +64,10 @@ export async function GET(request: NextRequest) {
       let shopifyOrderId = null;
       let shopifyOrderName = '';
       
-      if (canalStr === 'pagina_web') {
+      if (p.shopify_order_id) {
+        shopifyOrderId = `gid://shopify/Order/${p.shopify_order_id}`;
+        shopifyOrderName = `#${p.shopify_order_id}`;
+      } else if (canalStr === 'pagina_web') {
         if (cleanClienteId.startsWith('cliente_tienda_pedido_')) {
           const num = cleanClienteId.replace('cliente_tienda_pedido_', '');
           shopifyOrderId = `gid://shopify/Order/${num}`;
@@ -78,8 +88,8 @@ export async function GET(request: NextRequest) {
         db_id: p.id,
         hoko_order_id: p.hoko_order_id,
         hoko_store_id: p.hoko_store_id,
-        quantity: p.quantity || 1,
-        stock_id: p.stock_id,
+        quantity: p.items?.[0]?.quantity || p.quantity || 1,
+        stock_id: p.items?.[0]?.stock_id || p.stock_id,
         courier_id: p.courier_id,
         courier_name: p.courier_name,
         payment_type: p.payment_type,
@@ -88,6 +98,7 @@ export async function GET(request: NextRequest) {
         updated_at: p.updated_at,
         canal: canalStr,
         acceso_app: p.acceso_app || 'PENDIENTE APP',
+        status: p.status,
         customer: {
           name: p.clientes?.nombre || '—',
           email: p.clientes?.email || '—',
@@ -119,6 +130,22 @@ export async function GET(request: NextRequest) {
           },
           cache: 'no-store'
         });
+        
+        if (!res.ok) {
+          const errText = await res.text();
+          logger.error(`Error de Hoko para orden ${hokoId} (Status ${res.status}):`, errText.slice(0, 500));
+          orders.push(fullOrder);
+          return;
+        }
+
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          const errText = await res.text();
+          logger.error(`Respuesta de Hoko para orden ${hokoId} no es JSON (Status ${res.status}):`, errText.slice(0, 500));
+          orders.push(fullOrder);
+          return;
+        }
+
         const detail = await res.json();
         logger.info(`Respuesta Hoko para orden ${hokoId}:`, detail);
 
@@ -360,6 +387,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Insert or Update order in local database
+    const itemsArray = [
+      {
+        quantity: Number(quantity),
+        stock_id: Number(stock_id),
+        product_name: Number(stock_id) === 55134 ? 'Nano Track' : 'Producto Directo'
+      }
+    ];
+
     let orderResult = null;
     if (pedido_id) {
       logger.info(`Actualizando pedido existente por confirmar ID local: ${pedido_id}`);
@@ -369,8 +404,7 @@ export async function POST(request: NextRequest) {
           cliente_id,
           hoko_order_id: hokoOrderId,
           hoko_store_id: hokoStoreId,
-          quantity: Number(quantity),
-          stock_id: Number(stock_id),
+          items: itemsArray,
           courier_id: finalCourierId,
           courier_name: finalCourierName,
           payment_type: payment_type,
@@ -389,7 +423,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: orderUpdateError.message }, { status: 500 });
       }
       orderResult = updatedOrder;
-      logger.info(`Pedido ID local ${pedido_id} confirmado y actualizado exitosamente`);
+      logger.info(`Pedido ID local ${pedido_id} confirmed y actualizado exitosamente`);
     } else {
       logger.info('Registrando nuevo pedido en Supabase...');
       const { data: newOrder, error: orderInsertError } = await supabase
@@ -398,8 +432,7 @@ export async function POST(request: NextRequest) {
           cliente_id,
           hoko_order_id: hokoOrderId,
           hoko_store_id: hokoStoreId,
-          quantity: Number(quantity),
-          stock_id: Number(stock_id),
+          items: itemsArray,
           courier_id: finalCourierId,
           courier_name: finalCourierName,
           payment_type: payment_type,

@@ -232,6 +232,24 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
   };
 
   const getDeliveryStatus = (order: any) => {
+    // Prioritize Hoko delivery state if present
+    const hokoState = String(order.delivery_state || '');
+    if (hokoState === '4') {
+      return { text: 'Entregado', class: 'bg-success-bg text-success' };
+    }
+    if (hokoState === '3') {
+      return { text: 'Despachado', class: 'bg-info-bg text-info' };
+    }
+    if (hokoState === '2') {
+      return { text: 'En tránsito', class: 'bg-info-bg text-info' };
+    }
+    if (hokoState === '5') {
+      return { text: 'Cancelado', class: 'bg-danger-bg text-danger border-danger/20' };
+    }
+    if (hokoState === '6') {
+      return { text: 'En novedad', class: 'bg-warning-bg text-warning' };
+    }
+
     if (order.guide) {
       const state = String(order.guide.state);
       switch (state) {
@@ -901,6 +919,49 @@ export function OrdersDashboard({ onViewOrderDetail }: OrdersDashboardProps) {
                 onChange={(e) => setFilters(f => ({ ...f, city: e.target.value }))}
                 className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary placeholder:text-text-placeholder"
               />
+            </div>
+             <div>
+              <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Rango Rápido</label>
+              <select
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const today = new Date();
+                  let from = '';
+                  let to = today.toISOString().split('T')[0];
+
+                  if (val === 'today') {
+                    from = today.toISOString().split('T')[0];
+                  } else if (val === '3days') {
+                    const d = new Date();
+                    d.setDate(today.getDate() - 2);
+                    from = d.toISOString().split('T')[0];
+                  } else if (val === 'week') {
+                    const d = new Date();
+                    d.setDate(today.getDate() - 7);
+                    from = d.toISOString().split('T')[0];
+                  } else if (val === 'month') {
+                    const d = new Date(today.getFullYear(), today.getMonth(), 1);
+                    from = d.toISOString().split('T')[0];
+                  } else if (val === 'year') {
+                    const d = new Date(today.getFullYear(), 0, 1);
+                    from = d.toISOString().split('T')[0];
+                  }
+
+                  setFilters(f => ({
+                    ...f,
+                    dateFrom: from,
+                    dateTo: to
+                  }));
+                }}
+                className="w-full px-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200/50 dark:border-slate-800 bg-input text-text-secondary cursor-pointer"
+              >
+                <option value="custom">Personalizado</option>
+                <option value="today">Hoy</option>
+                <option value="3days">Últimos 3 días</option>
+                <option value="week">Últimos 7 días</option>
+                <option value="month">Este mes</option>
+                <option value="year">Este año</option>
+              </select>
             </div>
             <div>
               <label className="text-[9px] font-black text-text-muted uppercase tracking-wider block mb-1">Desde</label>

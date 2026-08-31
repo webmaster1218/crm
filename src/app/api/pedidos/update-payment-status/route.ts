@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
         }
       `;
       
+      const formattedShopifyId = String(shopify_order_id).startsWith('gid://') 
+        ? shopify_order_id 
+        : `gid://shopify/Order/${shopify_order_id}`;
+
       const response = await fetch(`https://telocalizo-tags.myshopify.com/admin/api/${apiVersion}/graphql.json`, {
         method: 'POST',
         headers: {
@@ -51,7 +55,7 @@ export async function POST(request: NextRequest) {
           query,
           variables: {
             input: {
-              id: shopify_order_id
+              id: formattedShopifyId
             }
           }
         }),
