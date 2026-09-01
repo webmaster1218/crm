@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ClipboardCheck, Search, Filter, RefreshCw, CheckCircle2, AlertCircle,
-  User, Mail, Phone, MapPin, Calendar, ShoppingCart, DollarSign, ExternalLink
+  User, Mail, Phone, MapPin, Calendar, ShoppingCart, DollarSign, ExternalLink,
+  FileText, MessageSquare
 } from 'lucide-react';
 import { Button } from '../../../../components/shared/Button';
 import { Badge } from '../../../../components/shared/Badge';
@@ -12,6 +13,7 @@ import { ExportDropdown } from '../../../../components/shared/ExportDropdown';
 import { exportToCSV, exportToXML } from '../../../../utils/exportUtils';
 import Swal from 'sweetalert2';
 import { CreateManualOrderModal } from '../../../../components/orders/CreateManualOrderModal';
+import { ArchiveOrderModal } from '../../../../components/orders/ArchiveOrderModal';
 
 interface PedidoPorConfirmar {
   id: number;
@@ -25,6 +27,7 @@ interface PedidoPorConfirmar {
   quantity: number;
   metodo_pago: string;
   status: 'COMFIRMADO' | 'ESPERANDO_COMFIRMACION' | 'ARCHIVADO';
+  notas?: string;
   confirmed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -52,6 +55,10 @@ export default function PedidosConfirmarPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPedidoPrefill, setSelectedPedidoPrefill] = useState<PedidoPorConfirmar | null>(null);
 
+  // Archive modal states
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [selectedArchivePedido, setSelectedArchivePedido] = useState<PedidoPorConfirmar | null>(null);
+
   const fetchPedidos = async () => {
     setLoading(true);
     setError(null);
@@ -71,72 +78,9 @@ export default function PedidosConfirmarPage() {
     fetchPedidos();
   }, []);
 
-  const handleArchiveOrder = async (id: number) => {
-    const isDark = document.documentElement.classList.contains('dark');
-    const confirm = await Swal.fire({
-      title: '¿Archivar pedido?',
-      text: 'El pedido se marcará como archivado/cancelado y no aparecerá en la lista de espera.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, archivar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#374151',
-      background: isDark ? '#1e293b' : '#ffffff',
-      color: isDark ? '#f8fafc' : '#0f172a',
-      customClass: {
-        popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-      }
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    setActionLoadingId(id);
-    try {
-      const res = await fetch('/api/pedidos/confirmar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: 'ARCHIVADO' })
-      });
-      
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Error al archivar el pedido.');
-      }
-      
-      // Update local state
-      setPedidos(prev => 
-        prev.map(p => p.id === id ? { ...p, status: 'ARCHIVADO' } : p)
-      );
-      
-      Swal.fire({
-        title: 'Pedido Archivado',
-        text: 'El pedido ha sido archivado exitosamente.',
-        icon: 'success',
-        timer: 1500,
-        showConfirmButton: false,
-        background: isDark ? '#1e293b' : '#ffffff',
-        color: isDark ? '#f8fafc' : '#0f172a',
-        customClass: {
-          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-        }
-      });
-    } catch (e: any) {
-      Swal.fire({
-        title: 'Error',
-        text: e.message || 'Error al archivar el pedido.',
-        icon: 'error',
-        confirmButtonText: 'Aceptar',
-        confirmButtonColor: '#ef4444',
-        background: isDark ? '#1e293b' : '#ffffff',
-        color: isDark ? '#f8fafc' : '#0f172a',
-        customClass: {
-          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-        }
-      });
-    } finally {
-      setActionLoadingId(null);
-    }
+  const handleOpenArchiveModal = (pedido: PedidoPorConfirmar) => {
+    setSelectedArchivePedido(pedido);
+    setShowArchiveModal(true);
   };
 
   const filteredPedidos = pedidos.filter(p => {
@@ -441,6 +385,14 @@ export default function PedidosConfirmarPage() {
                         <span className="text-xs font-bold text-text-primary">{pedido.name || '—'}</span>
                         <span className="text-text-muted font-medium mt-0.5">{pedido.phone || '—'}</span>
                         <span className="text-[10px] text-text-muted/70 truncate max-w-[150px]">{pedido.email || '—'}</span>
+                        
+                        {/* Note badge if archived / note exists */}
+                        {pedido.notas && (
+                          <div className="mt-1.5 flex items-start gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 px-2 py-1 rounded-lg text-[10px] max-w-[220px]">
+                            <FileText size={11} className="shrink-0 mt-0.5" />
+                            <span className="font-semibold line-clamp-2 leading-tight" title={pedido.notas}>{pedido.notas}</span>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5">
@@ -476,16 +428,26 @@ export default function PedidosConfirmarPage() {
                           </Button>
                           <Button
                             variant="outline"
-                            onClick={() => handleArchiveOrder(pedido.id)}
+                            onClick={() => handleOpenArchiveModal(pedido)}
                             className="h-7 px-2 text-[10px] font-black uppercase rounded-lg border-rose-500/20 hover:bg-rose-500/10 text-rose-500 dark:border-rose-500/30 dark:hover:bg-rose-500/20"
-                            disabled={actionLoadingId === pedido.id}
                           >
                             Archivar
                           </Button>
                         </div>
                       ) : pedido.status === 'ARCHIVADO' ? (
-                        <div className="text-[10px] text-rose-600 dark:text-rose-400 font-bold whitespace-nowrap">
-                          Archivado
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold whitespace-nowrap">
+                            Archivado
+                          </span>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleOpenArchiveModal(pedido)}
+                            className="h-6 px-2 text-[9px] font-bold text-text-muted hover:text-brand border-slate-200/50 dark:border-slate-800"
+                            title="Editar nota explicativa"
+                          >
+                            <FileText size={10} className="mr-1" />
+                            {pedido.notas ? 'Editar Nota' : 'Agregar Nota'}
+                          </Button>
                         </div>
                       ) : (
                         <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">
@@ -509,6 +471,23 @@ export default function PedidosConfirmarPage() {
         }}
         onSuccess={fetchPedidos}
         prefilledOrder={selectedPedidoPrefill}
+      />
+
+      <ArchiveOrderModal
+        isOpen={showArchiveModal}
+        onClose={() => {
+          setShowArchiveModal(false);
+          setSelectedArchivePedido(null);
+        }}
+        orderId={selectedArchivePedido?.id || null}
+        orderName={selectedArchivePedido ? `#${selectedArchivePedido.external_order_id || selectedArchivePedido.shopify_order_id || selectedArchivePedido.id}` : ''}
+        clientName={selectedArchivePedido?.name}
+        currentNote={selectedArchivePedido?.notas || ''}
+        onSuccess={(id, note) => {
+          setPedidos(prev => 
+            prev.map(p => p.id === id ? { ...p, status: 'ARCHIVADO', notas: note } : p)
+          );
+        }}
       />
 
     </div>

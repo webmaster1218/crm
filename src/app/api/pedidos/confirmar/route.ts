@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         quantity: p.items?.[0]?.quantity || p.quantity || 1,
         metodo_pago: p.payment_type || 'pending',
         status: p.status,
+        notas: p.notas || '',
         confirmed_at: p.confirmed_at,
         created_at: p.created_at,
         updated_at: p.updated_at
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
   logger.info('=== INICIO POST /api/pedidos/confirmar ===');
   try {
     const body = await request.json();
-    const { id, hoko_order_id, courier_name, status = 'COMFIRMADO' } = body;
+    const { id, hoko_order_id, courier_name, status = 'COMFIRMADO', notas } = body;
     
     if (!id) {
       logger.warn('POST /api/pedidos/confirmar llamado sin ID');
@@ -85,12 +86,28 @@ export async function POST(request: NextRequest) {
     if (courier_name !== undefined) {
       updateData.courier_name = courier_name;
     }
+    if (notas !== undefined) {
+      updateData.notas = notas;
+    }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pedidos')
       .update(updateData)
       .eq('id', id)
       .select('*, clientes(*)');
+
+    // If updating with 'notas' failed because the column does not exist yet, retry without 'notas'
+    if (error && error.message?.includes("'notas'")) {
+      logger.warn(`Columna 'notas' no detectada en Supabase aún. Reintentando actualización sin 'notas'...`);
+      delete updateData.notas;
+      const retry = await supabase
+        .from('pedidos')
+        .update(updateData)
+        .eq('id', id)
+        .select('*, clientes(*)');
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       logger.error(`Error al actualizar pedido ID ${id} en Supabase:`, error);
@@ -111,6 +128,7 @@ export async function POST(request: NextRequest) {
       quantity: data[0].quantity || 1,
       metodo_pago: data[0].payment_type || 'pending',
       status: data[0].status,
+      notas: data[0].notas || notas || '',
       confirmed_at: data[0].confirmed_at,
       created_at: data[0].created_at,
       updated_at: data[0].updated_at

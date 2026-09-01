@@ -1,11 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, RefreshCw, ShoppingBag, MapPin, User, Mail, Phone, Calendar, Clipboard, CreditCard, Box, Tag, Clock, RotateCcw, Receipt, Globe, Hash, Truck } from 'lucide-react';
+import { 
+  ArrowLeft, RefreshCw, ShoppingBag, MapPin, User, Mail, Phone, Calendar, 
+  Clipboard, CreditCard, Box, Tag, Clock, RotateCcw, Receipt, Globe, Hash, 
+  Truck, FileText, ExternalLink, Copy, Check, AlertTriangle, CheckCircle2 
+} from 'lucide-react';
 import { Button } from '../shared/Button';
 import Swal from 'sweetalert2';
 import { CreateManualOrderModal } from './CreateManualOrderModal';
-
+import { ArchiveOrderModal } from './ArchiveOrderModal';
+import { HOKO_ORDER_STATES, HOKO_GUIDE_STATES_CO } from '../../types';
 import { useRouter } from 'next/navigation';
 
 interface OrderDetailViewProps {
@@ -16,12 +21,19 @@ interface OrderDetailViewProps {
 export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
   const router = useRouter();
   const [order, setOrder] = useState<any | null>(null);
+  const [hokoOrder, setHokoOrder] = useState<any | null>(null);
+  const [loadingHoko, setLoadingHoko] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [updatingAppStatus, setUpdatingAppStatus] = useState(false);
+  const [copiedGuide, setCopiedGuide] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fulfilling, setFulfilling] = useState(false);
   const [paying, setPaying] = useState(false);
   const [activeSection, setActiveSection] = useState<'items' | 'customer' | 'payment' | 'notes'>('items');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   
   // Note states (Shopify only)
   const [editingNote, setEditingNote] = useState(false);
@@ -43,6 +55,30 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
   const [editingAddress, setEditingAddress] = useState(false);
   const [addressForm, setAddressForm] = useState({ firstName: '', lastName: '', company: '', address1: '', address2: '', city: '', province: '', zip: '', country: '', phone: '' });
   const [savingAddress, setSavingAddress] = useState(false);
+
+  const fetchHokoDetails = async (hokoId: string | number) => {
+    if (!hokoId) return;
+    setLoadingHoko(true);
+    try {
+      const res = await fetch('/api/hoko', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: `/member/order/${hokoId}`,
+          method: 'GET'
+        })
+      });
+      const data = await res.json();
+      const hokoData = data.data || data;
+      if (hokoData && !hokoData.error) {
+        setHokoOrder(hokoData);
+      }
+    } catch (err) {
+      console.error("Error fetching live Hoko order details:", err);
+    } finally {
+      setLoadingHoko(false);
+    }
+  };
 
   const fetchOrderDetails = async () => {
     if (!orderId) return;
@@ -170,8 +206,12 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
               db_id: localOrder.db_id,
               cliente_id: localOrder.cliente_id,
               canal: localOrder.canal,
+              notas: localOrder.notas || '',
             };
             setOrder(merged);
+            if (localOrder.hoko_order_id) {
+              fetchHokoDetails(localOrder.hoko_order_id);
+            }
             setLoading(false);
             return;
           } else {
@@ -220,6 +260,12 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         tags: localOrder.tags || [],
         note: localOrder.note || 'Pedido de Chat',
         status: localOrder.status,
+        notas: localOrder.notas || '',
+        hoko_order_id: localOrder.hoko_order_id,
+        delivery_state: localOrder.delivery_state,
+        guide: localOrder.guide,
+        courier_name: localOrder.courier_name,
+        stock_id: localOrder.stock_id,
         totalPriceSet: {
           presentmentMoney: {
             amount: String(localOrder.total_paid || 0),
@@ -268,10 +314,247 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
       };
       
       setOrder(compatibleOrder);
+      if (localOrder.hoko_order_id) {
+        fetchHokoDetails(localOrder.hoko_order_id);
+      }
     } catch (error: any) {
-      setErrorMessage(error.message || 'Error de conexiÃ³n');
+      setErrorMessage(error.message || 'Error de conexión');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateGuide = async (hokoId: string | number) => {
+    setActionLoading('guide');
+    try {
+      const res = await fetch('/api/hoko', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: `/member/order/generate-guide/${hokoId}`,
+          method: 'POST'
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Guía Generada',
+        text: data.message || 'La solicitud para generar la guía fue enviada con éxito.',
+        icon: 'success',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#10b981',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+      fetchHokoDetails(hokoId);
+      fetchOrderDetails();
+    } catch (err: any) {
+      const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Error',
+        text: err.message || 'No se pudo generar la guía.',
+        icon: 'error',
+        confirmButtonColor: '#ef4444',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a'
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const toggleAppStatus = async () => {
+    if (!order || !order.db_id) return;
+    const currentStatus = order.acceso_app || 'PENDIENTE APP';
+    const nextStatus = currentStatus === 'OK APP' ? 'PENDIENTE APP' : 'OK APP';
+    setUpdatingAppStatus(true);
+    try {
+      const res = await fetch('/api/pedidos/update-app-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: order.db_id, status: nextStatus })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al actualizar acceso.');
+      }
+      setOrder((prev: any) => prev ? { ...prev, acceso_app: nextStatus } : null);
+      
+      const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Acceso Actualizado',
+        text: `El estado del acceso cambió a ${nextStatus}`,
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+      const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+      Swal.fire({
+        title: 'Error',
+        text: err.message || 'No se pudo actualizar el acceso.',
+        icon: 'error',
+        confirmButtonColor: '#ef4444',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a'
+      });
+    } finally {
+      setUpdatingAppStatus(false);
+    }
+  };
+
+  const stateColor = (state: string | number) => {
+    const s = String(state);
+    switch (s) {
+      case '4': return 'bg-emerald-600/80 text-white border-emerald-500/30 border'; // Finalizada
+      case '5': return 'bg-rose-600/80 text-white border-rose-500/30 border'; // Cancelada
+      case '6': return 'bg-amber-600/80 text-white border-amber-500/30 border'; // En Novedad
+      case '2': // En proceso
+      case '3': // Despachada
+        return 'bg-blue-600/80 text-white border-blue-500/30 border';
+      default:
+        return 'bg-brand/20 text-brand border border-brand/30';
+    }
+  };
+
+  const guideStateColor = (state: string | number) => {
+    const s = String(state);
+    switch (s) {
+      case '3': // Entregada
+      case '17': // Pagado
+      case '19': // Pagado a Tienda
+        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
+      case '0': // Cancelada
+      case '4': // Anulada
+      case '11': // Devolución
+      case '20': // Devolución Cobrado
+        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20';
+      case '6': // En Novedad
+      case '18': // Error por Saldo
+      case '21': // Error por API
+        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20';
+      case '2': // Despachada
+      case '7': // En Reparto
+      case '9': // Reexpedición
+      case '13': // Recibido del Cliente
+        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20';
+      default:
+        return 'bg-brand/10 text-brand border border-brand/20';
+    }
+  };
+
+  const handleArchiveOrder = async (id: number | string, currentNote = '') => {
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    const { value: formValues, isConfirmed } = await Swal.fire({
+      title: 'Archivar Pedido',
+      html: `
+        <div class="text-left space-y-3 font-sans">
+          <p class="text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}">
+            Ingresa o selecciona el motivo por el cual el cliente no está interesado o se cancela el pedido:
+          </p>
+
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}">Motivo rápido:</label>
+            <select id="archive-reason-select" class="w-full text-xs p-2.5 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">-- Seleccionar motivo común --</option>
+              <option value="Cliente no interesado / Canceló pedido">Cliente no interesado / Canceló pedido</option>
+              <option value="No contesta llamadas ni WhatsApp">No contesta llamadas ni WhatsApp</option>
+              <option value="Precio o costo de flete elevado">Precio o costo de flete elevado</option>
+              <option value="Compró en otra tienda / competidor">Compró en otra tienda / competidor</option>
+              <option value="Datos de entrega / teléfono erróneos">Datos de entrega / teléfono erróneos</option>
+              <option value="Pedido duplicado o de prueba">Pedido duplicado o de prueba</option>
+            </select>
+          </div>
+
+          <div class="space-y-1.5 pt-1">
+            <label class="text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}">Nota explicativa / Observaciones:</label>
+            <textarea id="archive-note-textarea" rows="3" placeholder="Escribe los detalles o comentarios sobre este pedido..." class="w-full text-xs p-3 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none">${currentNote || ''}</textarea>
+          </div>
+        </div>
+      `,
+      didOpen: () => {
+        const select = document.getElementById('archive-reason-select') as HTMLSelectElement;
+        const textarea = document.getElementById('archive-note-textarea') as HTMLTextAreaElement;
+        if (select && textarea) {
+          select.addEventListener('change', () => {
+            if (select.value) {
+              textarea.value = select.value;
+            }
+          });
+        }
+      },
+      preConfirm: () => {
+        const textarea = document.getElementById('archive-note-textarea') as HTMLTextAreaElement;
+        return {
+          note: textarea ? textarea.value.trim() : ''
+        };
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Archivar Pedido',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#374151',
+      background: isDark ? '#1e293b' : '#ffffff',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      customClass: {
+        popup: 'rounded-[28px] border border-slate-200 dark:border-slate-800 p-6'
+      }
+    });
+
+    if (!isConfirmed) return;
+
+    const note = formValues?.note || 'Cliente no interesado';
+
+    try {
+      const res = await fetch('/api/pedidos/confirmar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'ARCHIVADO', notas: note })
+      });
+      
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al archivar el pedido.');
+      }
+      
+      Swal.fire({
+        title: 'Pedido Archivado',
+        text: 'El pedido ha sido archivado con su nota explicativa.',
+        icon: 'success',
+        timer: 1800,
+        showConfirmButton: false,
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
+
+      fetchOrderDetails();
+    } catch (e: any) {
+      Swal.fire({
+        title: 'Error',
+        text: e.message || 'Error al archivar el pedido.',
+        icon: 'error',
+        confirmButtonText: 'Aceptar',
+        confirmButtonColor: '#ef4444',
+        background: isDark ? '#1e293b' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#0f172a',
+        customClass: {
+          popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
+        }
+      });
     }
   };
 
@@ -643,6 +926,18 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 }`}>
                   {isShopify ? 'Shopify' : order.canal}
                 </span>
+
+                {/* Hoko status badge if available */}
+                {(order.hoko_order_id || hokoOrder?.id) && (
+                  <span className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full ${stateColor(hokoOrder?.delivery_state || order.delivery_state || '1')}`}>
+                    Hoko: {HOKO_ORDER_STATES[hokoOrder?.delivery_state || order.delivery_state] || 'En Despacho'}
+                  </span>
+                )}
+                {(hokoOrder?.guide?.state !== undefined || order.guide?.state !== undefined) && (
+                  <span className={`px-2.5 py-0.5 text-[10px] font-black uppercase rounded-full ${guideStateColor((hokoOrder?.guide || order.guide)?.state)}`}>
+                    Guía: {HOKO_GUIDE_STATES_CO[(hokoOrder?.guide || order.guide)?.state] || 'Generada'}
+                  </span>
+                )}
               </div>
 
               {/* Order number */}
@@ -671,6 +966,16 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                 <p className="text-3xl font-black text-white">{total}</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {(order.hoko_order_id || hokoOrder?.id) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push(`/ordenes/${order.hoko_order_id || hokoOrder?.id}`)}
+                    className="h-9 text-[11px] font-black uppercase tracking-wide border-brand/40 text-brand-light hover:bg-brand/10"
+                  >
+                    <ExternalLink size={13} className="mr-1" />
+                    <span>Ver en Órdenes</span>
+                  </Button>
+                )}
                 {order.status === 'ESPERANDO_COMFIRMACION' && (
                   <>
                     <Button
@@ -682,67 +987,7 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={async () => {
-                        const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-                        const confirm = await Swal.fire({
-                          title: '¿Archivar pedido?',
-                          text: 'El pedido se marcará como archivado/cancelado y no aparecerá en la lista de espera.',
-                          icon: 'warning',
-                          showCancelButton: true,
-                          confirmButtonText: 'Sí, archivar',
-                          cancelButtonText: 'Cancelar',
-                          confirmButtonColor: '#ef4444',
-                          cancelButtonColor: '#374151',
-                          background: isDark ? '#1e293b' : '#ffffff',
-                          color: isDark ? '#f8fafc' : '#0f172a',
-                          customClass: {
-                            popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-                          }
-                        });
-
-                        if (!confirm.isConfirmed) return;
-
-                        try {
-                          const res = await fetch('/api/pedidos/confirmar', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: order.db_id, status: 'ARCHIVADO' })
-                          });
-                          
-                          const data = await res.json();
-                          if (!res.ok || data.error) {
-                            throw new Error(data.error || 'Error al archivar el pedido.');
-                          }
-                          
-                          Swal.fire({
-                            title: 'Pedido Archivado',
-                            text: 'El pedido ha sido archivado exitosamente.',
-                            icon: 'success',
-                            timer: 1500,
-                            showConfirmButton: false,
-                            background: isDark ? '#1e293b' : '#ffffff',
-                            color: isDark ? '#f8fafc' : '#0f172a',
-                            customClass: {
-                              popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-                            }
-                          });
-
-                          fetchOrderDetails();
-                        } catch (e: any) {
-                          Swal.fire({
-                            title: 'Error',
-                            text: e.message || 'Error al archivar el pedido.',
-                            icon: 'error',
-                            confirmButtonText: 'Aceptar',
-                            confirmButtonColor: '#ef4444',
-                            background: isDark ? '#1e293b' : '#ffffff',
-                            color: isDark ? '#f8fafc' : '#0f172a',
-                            customClass: {
-                              popup: 'rounded-[24px] border border-slate-200 dark:border-slate-800'
-                            }
-                          });
-                        }
-                      }}
+                      onClick={() => setShowArchiveModal(true)}
                       className="h-9 text-[11px] font-black uppercase tracking-wide border-rose-500/30 text-rose-500 hover:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/40"
                     >
                       Archivar
@@ -775,16 +1020,85 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
         </div>
 
         {/* Hoko strip */}
-        {order.hoko_order_id && (
-          <div className="relative border-t border-white/8 px-6 md:px-8 py-3 flex items-center gap-2.5">
-            <Truck size={13} className="text-brand/70 shrink-0" />
-            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Envío Hoko activo</span>
-            <span className="ml-1 px-2 py-0.5 bg-brand/20 border border-brand/20 rounded-full text-white text-[10px] font-black">
-              #{order.hoko_order_id}
-            </span>
+        {(order.hoko_order_id || hokoOrder?.id) && (
+          <div className="relative border-t border-white/8 px-6 md:px-8 py-3 flex flex-wrap items-center justify-between gap-3 bg-white/[0.02]">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Truck size={14} className="text-brand shrink-0" />
+              <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Envío Hoko:</span>
+              <span className="px-2 py-0.5 bg-brand/20 border border-brand/30 rounded-full text-white text-[10px] font-black font-mono">
+                #{order.hoko_order_id || hokoOrder?.id}
+              </span>
+              
+              {(hokoOrder?.guide?.number || order.guide?.number) ? (
+                <span className="text-[11px] font-semibold text-white/80 flex items-center gap-1.5 ml-2">
+                  <span className="text-white/40">•</span>
+                  <span className="text-[10px] text-white/50 uppercase font-black">Guía:</span>
+                  <span className="font-mono font-black text-brand-light">{(hokoOrder?.guide || order.guide)?.number}</span>
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${guideStateColor((hokoOrder?.guide || order.guide)?.state)}`}>
+                    {HOKO_GUIDE_STATES_CO[(hokoOrder?.guide || order.guide)?.state] || 'Activa'}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-[10px] text-amber-400 font-bold ml-2">
+                  (Pendiente por generar guía)
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {((hokoOrder as any)?.guide_pdf || (hokoOrder?.guide as any)?.pdf) && (
+                <a
+                  href={(hokoOrder as any)?.guide_pdf || (hokoOrder?.guide as any)?.pdf}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase rounded-lg transition-colors border border-white/10"
+                >
+                  <FileText size={11} />
+                  <span>PDF Guía</span>
+                </a>
+              )}
+              <button
+                onClick={() => router.push(`/ordenes/${order.hoko_order_id || hokoOrder?.id}`)}
+                className="inline-flex items-center gap-1 text-[10px] font-black text-brand-light hover:underline uppercase tracking-wider"
+              >
+                <span>Módulo Órdenes</span>
+                <ExternalLink size={11} />
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      {/* ═══ ARCHIVED ORDER ALERT BANNER (PRO-341) ═══ */}
+      {order.status === 'ARCHIVADO' && (
+        <div className="mx-4 md:mx-6 mb-5 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl shrink-0 mt-0.5">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[10px] font-black uppercase rounded-full">
+                  Pedido Archivado
+                </span>
+                <span className="text-[11px] font-bold text-text-muted">Cliente No Interesado</span>
+              </div>
+              <p className="text-xs text-text-primary mt-1.5 font-medium leading-relaxed">
+                <span className="font-bold">Motivo / Nota: </span>
+                {order.notas || 'No se registró una nota explicativa al archivar.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowArchiveModal(true)}
+            className="h-8 px-3 text-[10px] font-bold border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 shrink-0 self-start md:self-auto"
+          >
+            <FileText size={12} className="mr-1.5" />
+            <span>{order.notas ? 'Editar Nota de Archivo' : 'Agregar Nota de Archivo'}</span>
+          </Button>
+        </div>
+      )}
 
       {/* BODY: 5-col grid */}
       <div className="px-4 md:px-6 grid grid-cols-1 xl:grid-cols-5 gap-4 pb-10">
@@ -915,8 +1229,205 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
           )}
         </div>
 
-        {/* RIGHT COL (2/5): Customer + Address + Tags */}
+        {/* RIGHT COL (2/5): Hoko Logistics + Customer + Address + Tags */}
         <div className="xl:col-span-2 flex flex-col gap-4">
+
+          {/* ═══ HOKO SHIPPING & LOGISTICS CARD ═══ */}
+          {(order.hoko_order_id || hokoOrder?.id) ? (
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden shadow-sm animate-in fade-in duration-300">
+              {/* Card Header */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800/70 bg-gradient-to-r from-brand/10 via-transparent to-transparent">
+                <div className="flex items-center gap-2">
+                  <Truck size={15} className="text-brand" />
+                  <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">
+                    Despacho & Guía Hoko
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase rounded-full ${stateColor((hokoOrder || order).delivery_state || '1')}`}>
+                    {HOKO_ORDER_STATES[(hokoOrder || order).delivery_state] || `Orden #${(order.hoko_order_id || hokoOrder?.id)}`}
+                  </span>
+                  <button
+                    onClick={() => router.push(`/ordenes/${order.hoko_order_id || hokoOrder?.id}`)}
+                    className="p-1 text-text-muted hover:text-brand transition-colors rounded-lg"
+                    title="Ver en módulo de órdenes Hoko"
+                  >
+                    <ExternalLink size={13} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* Guide Highlight Box */}
+                <div className="bg-slate-50 dark:bg-slate-900/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-800/60 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[9px] font-black text-text-muted uppercase tracking-wider block">Número de Guía</span>
+                      {((hokoOrder || order).guide?.number) ? (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-sm font-black font-mono text-text-primary tracking-wide">
+                            {(hokoOrder || order).guide.number}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText((hokoOrder || order).guide.number);
+                              setCopiedGuide(true);
+                              setTimeout(() => setCopiedGuide(false), 2000);
+                            }}
+                            className="text-text-muted hover:text-brand p-1 transition-colors rounded-lg"
+                            title="Copiar número de guía"
+                          >
+                            {copiedGuide ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-text-muted font-bold italic mt-0.5 block">Sin guía generada</span>
+                      )}
+                    </div>
+
+                    {((hokoOrder || order).guide?.state !== undefined) && (
+                      <div className="text-right">
+                        <span className="text-[9px] font-black text-text-muted uppercase tracking-wider block">Estado Guía</span>
+                        <span className={`inline-block mt-0.5 px-2.5 py-0.5 text-[9px] font-black uppercase rounded-full ${guideStateColor((hokoOrder || order).guide.state)}`}>
+                          {HOKO_GUIDE_STATES_CO[(hokoOrder || order).guide.state] || `Estado #${(hokoOrder || order).guide.state}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200/50 dark:border-slate-800/50 text-xs font-semibold">
+                    <div>
+                      <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">Transportadora</span>
+                      <span className="text-text-primary font-black text-[11px] truncate block">
+                        {(hokoOrder || order).courier?.name || order.courier_name || ((hokoOrder || order).courier_id ? `Courier #${(hokoOrder || order).courier_id}` : '—')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">Flete Tienda</span>
+                      <span className="text-text-primary font-black text-[11px] font-mono block">
+                        {(hokoOrder || order).guide?.total_freight_store ? `$${parseInt((hokoOrder || order).guide.total_freight_store).toLocaleString('es-CO')} COP` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions inside guide block */}
+                  <div className="pt-2 flex flex-wrap gap-2">
+                    {((hokoOrder as any)?.guide_pdf || (hokoOrder?.guide as any)?.pdf || (order as any).guide_pdf) ? (
+                      <a
+                        href={(hokoOrder as any)?.guide_pdf || (hokoOrder?.guide as any)?.pdf || (order as any).guide_pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full text-center inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-brand text-white text-[10px] font-black uppercase rounded-xl hover:bg-brand/90 transition-all shadow-sm"
+                      >
+                        <FileText size={13} />
+                        <span>Imprimir Guía PDF</span>
+                      </a>
+                    ) : (
+                      !((hokoOrder || order).guide?.number) && (
+                        <Button
+                          variant="primary"
+                          onClick={() => handleGenerateGuide(order.hoko_order_id || hokoOrder?.id)}
+                          disabled={actionLoading === 'guide'}
+                          className="w-full text-center flex items-center justify-center gap-1.5 h-8 text-[10px] font-black uppercase bg-brand text-white rounded-xl shadow-sm"
+                        >
+                          {actionLoading === 'guide' ? <RefreshCw size={12} className="animate-spin" /> : <Truck size={12} />}
+                          <span>Generar Guía de Envío</span>
+                        </Button>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Logistic Specifications Grid */}
+                <div className="grid grid-cols-2 gap-2.5 text-xs font-semibold text-text-secondary">
+                  <div className="bg-slate-50/80 dark:bg-slate-900/30 rounded-xl p-2.5 border border-slate-100 dark:border-slate-800/40">
+                    <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">Bodega Despacho</span>
+                    <span className="text-text-primary font-black text-xs">
+                      {(hokoOrder || order).cellar_id === 2353 ? 'Bodega Bogotá (#2353)' : (hokoOrder || order).cellar_id === 2354 ? 'Bodega Medellín (#2354)' : ((hokoOrder || order).cellar_id ? `Bodega #${(hokoOrder || order).cellar_id}` : (order.stock_id ? `Stock #${order.stock_id}` : 'Principal'))}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50/80 dark:bg-slate-900/30 rounded-xl p-2.5 border border-slate-100 dark:border-slate-800/40">
+                    <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">Valor Declarado</span>
+                    <span className="text-text-primary font-black text-xs font-mono">
+                      ${(hokoOrder || order).declared_value ? parseInt((hokoOrder || order).declared_value).toLocaleString('es-CO') : '100.000'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50/80 dark:bg-slate-900/30 rounded-xl p-2.5 border border-slate-100 dark:border-slate-800/40">
+                    <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">Método Recaudo</span>
+                    <span className="text-text-primary font-black text-xs">
+                      {(hokoOrder || order).payment === '1' ? 'Contra entrega' : (hokoOrder || order).payment === '2' ? 'Ordinario' : (order.payment_type || 'Contra entrega')}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50/80 dark:bg-slate-900/30 rounded-xl p-2.5 border border-slate-100 dark:border-slate-800/40">
+                    <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">Empaque y Peso</span>
+                    <span className="text-text-primary font-black text-xs">
+                      {(hokoOrder || order).measures ? `${(hokoOrder || order).measures.width}x${(hokoOrder || order).measures.height}x${(hokoOrder || order).measures.length} cm (${(hokoOrder || order).measures.weight}kg)` : '10x10x10 cm (1kg)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Contenido Declarado */}
+                {((hokoOrder || order).contain) && (
+                  <div className="text-xs">
+                    <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block mb-1">Contenido Declarado</span>
+                    <p className="font-bold text-text-primary text-[11px] truncate bg-slate-50/80 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800/30">
+                      {(hokoOrder || order).contain}
+                    </p>
+                  </div>
+                )}
+
+                {/* Acceso a App Mobile */}
+                {order.db_id && (
+                  <div className="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block">Acceso Plataforma App</span>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-full border mt-1 select-none ${
+                        order.acceso_app === 'OK APP'
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+                      }`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                        {order.acceso_app || 'PENDIENTE APP'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={updatingAppStatus}
+                      onClick={toggleAppStatus}
+                      className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-text-primary rounded-xl border border-slate-200 dark:border-slate-800 transition-all active:scale-95 whitespace-nowrap"
+                    >
+                      {updatingAppStatus ? '...' : 'Cambiar Acceso'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* No Hoko order yet card */
+            <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-2">
+                <Truck size={15} className="text-text-muted" />
+                <span className="text-[11px] font-black text-text-primary uppercase tracking-widest">
+                  Despacho Hoko
+                </span>
+              </div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Este pedido no cuenta con una orden de despacho creada en Hoko todavía.
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => setShowCreateModal(true)}
+                className="w-full h-9 text-[10px] font-black uppercase tracking-wider bg-brand border-0 text-white rounded-xl flex items-center justify-center gap-1.5"
+              >
+                <Truck size={13} />
+                <span>Crear Orden en Hoko</span>
+              </Button>
+            </div>
+          )}
 
           {/* Customer card */}
           <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-card overflow-hidden">
@@ -1148,24 +1659,39 @@ export function OrderDetailView({ orderId, onBack }: OrderDetailViewProps) {
       </div>
 
       {order && (
-        <CreateManualOrderModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            setShowCreateModal(false);
-            fetchOrderDetails();
-          }}
-          prefilledOrder={{
-            id: order.db_id,
-            name: order.customer?.name || `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim(),
-            email: order.customer?.email || '',
-            phone: order.customer?.phone || '',
-            address: order.shippingAddress?.address1 || '',
-            city: order.shippingAddress?.city || '',
-            quantity: totalItems || 1,
-            metodo_pago: order.paymentGatewayNames?.[0] || 'cod'
-          }}
-        />
+        <>
+          <CreateManualOrderModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onSuccess={() => {
+              setShowCreateModal(false);
+              fetchOrderDetails();
+            }}
+            prefilledOrder={{
+              id: order.db_id,
+              name: order.customer?.name || `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim(),
+              email: order.customer?.email || '',
+              phone: order.customer?.phone || '',
+              address: order.shippingAddress?.address1 || '',
+              city: order.shippingAddress?.city || '',
+              quantity: totalItems || 1,
+              metodo_pago: order.paymentGatewayNames?.[0] || 'cod'
+            }}
+          />
+
+          <ArchiveOrderModal
+            isOpen={showArchiveModal}
+            onClose={() => setShowArchiveModal(false)}
+            orderId={order.db_id || null}
+            orderName={order.shopify_order_name || `#${order.shopify_order_id || order.id || order.db_id}`}
+            clientName={order.customer?.name}
+            currentNote={order.notas || ''}
+            onSuccess={(id, note) => {
+              setOrder((prev: any) => prev ? { ...prev, status: 'ARCHIVADO', notas: note } : prev);
+              fetchOrderDetails();
+            }}
+          />
+        </>
       )}
     </div>
   );

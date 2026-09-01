@@ -99,6 +99,7 @@ export async function GET(request: NextRequest) {
         canal: canalStr,
         acceso_app: p.acceso_app || 'PENDIENTE APP',
         status: p.status,
+        notas: p.notas || '',
         customer: {
           name: p.clientes?.nombre || '—',
           email: p.clientes?.email || '—',
